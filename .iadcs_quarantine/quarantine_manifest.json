@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "app_name": "code",
+      "original_path": "C:\\Users\\User\\Documents\\IADCS\\sample_apps\\DevApp_Backup_2026",
+      "quarantined_path": "C:\\Users\\User\\Documents\\IADCS\\.iadcs_quarantine\\code_20260828_140419_93034e20",
+      "fingerprint": "93034e20417c9d2ee708b2bf9e83521eabe454531294f0717615b51f4a8eee32",
+      "total_size": 44,
+      "quarantined_at": "2026-08-28T14:04:19.928303"
+    },
+    {
+      "app_name": "code",
+      "original_path": "C:\\Users\\User\\Documents\\IADCS\\sample_apps\\DevApp_Backup",
+      "quarantined_path": "C:\\Users\\User\\Documents\\IADCS\\.iadcs_quarantine\\code_20260829_140227_93034e20",
+      "fingerprint": "93034e20417c9d2ee708b2bf9e83521eabe454531294f0717615b51f4a8eee32",
+      "total_size": 44,
+      "quarantined_at": "2026-08-29T14:02:27.310418"
+    },
+    {
+      "app_name": "main",
+      "original_path": "C:\\Users\\User\\Documents\\Watson Service - Copy\\main.py",
+      "quarantined_path": "C:\\Users\\User\\Documents\\IADCS\\.iadcs_quarantine\\main_20260829_145339_d84c749a",
+      "fingerprint": "d84c749ab6f0a35d542f7e0e11e5e556d6126026de566acf025e14d2755b8f96",
+      "total_size": 636,
+      "quarantined_at": "2026-08-29T14:53:39.451551"
+    },
+    {
+      "app_name": "main",
+      "original_path": "C:\\Users\\User\\Documents\\Watson Service - Copy (2)\\main.py",
+      "quarantined_path": "C:\\Users\\User\\Documents\\IADCS\\.iadcs_quarantine\\main_20260829_145339_d84c749a",
+      "fingerprint": "d84c749ab6f0a35d542f7e0e11e5e556d6126026de566acf025e14d2755b8f96",
+      "total_size": 636,
+      "quarantined_at": "2026-08-29T14:53:39.481543"
+    }
+  ]
+}

@@ -1,0 +1,280 @@
+categories:
+  - name: Development
+    priority: 100
+    rules:
+      - field: path
+        operator: contains
+        value: "vscode"
+      - field: path
+        operator: contains
+        value: "intellij"
+      - field: path
+        operator: contains
+        value: "pycharm"
+      - field: path
+        operator: contains
+        value: "git"
+      - field: executable
+        operator: contains
+        value: "code"
+      - field: executable
+        operator: contains
+        value: "python"
+      - field: executable
+        operator: contains
+        value: "node"
+      - field: executable
+        operator: contains
+        value: "cargo"
+      - field: executable
+        operator: contains
+        value: "rustc"
+      - field: executable
+        operator: contains
+        value: "gcc"
+
+  - name: Web Development
+    priority: 90
+    rules:
+      - field: path
+        operator: contains
+        value: "postman"
+      - field: path
+        operator: contains
+        value: "insomnia"
+      - field: path
+        operator: contains
+        value: "nginx"
+      - field: path
+        operator: contains
+        value: "apache"
+      - field: executable
+        operator: contains
+        value: "docker"
+
+  - name: Database
+    priority: 85
+    rules:
+      - field: path
+        operator: contains
+        value: "dbeaver"
+      - field: path
+        operator: contains
+        value: "datagrip"
+      - field: path
+        operator: contains
+        value: "pgadmin"
+      - field: path
+        operator: contains
+        value: "sqlite"
+      - field: executable
+        operator: contains
+        value: "postgres"
+      - field: executable
+        operator: contains
+        value: "mysql"
+      - field: executable
+        operator: contains
+        value: "redis"
+
+  - name: Security
+    priority: 80
+    rules:
+      - field: path
+        operator: contains
+        value: "wireshark"
+      - field: path
+        operator: contains
+        value: "burp"
+      - field: path
+        operator: contains
+        value: "nmap"
+      - field: path
+        operator: contains
+        value: "keepass"
+      - field: path
+        operator: contains
+        value: "bitwarden"
+      - field: executable
+        operator: contains
+        value: "antivirus"
+      - field: executable
+        operator: contains
+        value: "vpn"
+
+  - name: Graphics/Design
+    priority: 75
+    rules:
+      - field: path
+        operator: contains
+        value: "photoshop"
+      - field: path
+        operator: contains
+        value: "figma"
+      - field: path
+        operator: contains
+        value: "blender"
+      - field: path
+        operator: contains
+        value: "gimp"
+      - field: path
+        operator: contains
+        value: "inkscape"
+      - field: path
+        operator: contains
+        value: "canva"
+
+  - name: Media
+    priority: 70
+    rules:
+      - field: path
+        operator: contains
+        value: "vlc"
+      - field: path
+        operator: contains
+        value: "spotify"
+      - field: path
+        operator: contains
+        value: "obs"
+      - field: path
+        operator: contains
+        value: "audacity"
+      - field: executable
+        operator: contains
+        value: "player"
+      - field: executable
+        operator: contains
+        value: "media"
+
+  - name: Office/Productivity
+    priority: 65
+    rules:
+      - field: path
+        operator: contains
+        value: "office"
+      - field: path
+        operator: contains
+        value: "word"
+      - field: path
+        operator: contains
+        value: "excel"
+      - field: path
+        operator: contains
+        value: "powerpoint"
+      - field: path
+        operator: contains
+        value: "notion"
+      - field: path
+        operator: contains
+        value: "obsidian"
+      - field: path
+        operator: contains
+        value: "libreoffice"
+      - field: path
+        operator: contains
+        value: "pdf"
+
+  - name: Communication
+    priority: 60
+    rules:
+      - field: path
+        operator: contains
+        value: "slack"
+      - field: path
+        operator: contains
+        value: "discord"
+      - field: path
+        operator: contains
+        value: "telegram"
+      - field: path
+        operator: contains
+        value: "teams"
+      - field: path
+        operator: contains
+        value: "zoom"
+      - field: path
+        operator: contains
+        value: "skype"
+
+  - name: Games
+    priority: 55
+    rules:
+      - field: path
+        operator: contains
+        value: "steam"
+      - field: path
+        operator: contains
+        value: "epic games"
+      - field: path
+        operator: contains
+        value: "riot"
+      - field: path
+        operator: contains
+        value: "unity"
+      - field: path
+        operator: contains
+        value: "unreal"
+      - field: path
+        operator: contains
+        value: "game"
+
+  - name: Utilities
+    priority: 50
+    rules:
+      - field: path
+        operator: contains
+        value: "7-zip"
+      - field: path
+        operator: contains
+        value: "winrar"
+      - field: path
+        operator: contains
+        value: "rufus"
+      - field: path
+        operator: contains
+        value: "powertoys"
+      - field: executable
+        operator: contains
+        value: "calc"
+      - field: executable
+        operator: contains
+        value: "cleaner"
+      - field: executable
+        operator: contains
+        value: "benchmark"
+
+  - name: Education
+    priority: 45
+    rules:
+      - field: path
+        operator: contains
+        value: "anki"
+      - field: path
+        operator: contains
+        value: "geogebra"
+      - field: path
+        operator: contains
+        value: "stellarium"
+      - field: path
+        operator: contains
+        value: "edx"
+
+  - name: System Software
+    priority: 40
+    rules:
+      - field: path
+        operator: contains
+        value: "driver"
+      - field: path
+        operator: contains
+        value: "updater"
+      - field: executable
+        operator: contains
+        value: "msiexec"
+      - field: executable
+        operator: contains
+        value: "sysinternals"
+
+  - name: Other
+    priority: 0
+    rules: []

@@ -1,0 +1,61 @@
+{
+  "metadata": {
+    "report_version": "1.0",
+    "system": "Intelligent Application Deduplication & Categorization System (IADCS)",
+    "generated_at": "2026-08-29T14:02:14.705139",
+    "scan_id": "7167d805"
+  },
+  "scan_summary": {
+    "scan_paths": [
+      "sample_apps"
+    ],
+    "duration_seconds": 0.0,
+    "total_applications_found": 18,
+    "total_files_scanned": 227,
+    "total_storage_bytes": 69165001,
+    "total_reclaimable_bytes": 44
+  },
+  "duplicate_summary": {
+    "duplicate_groups_count": 1,
+    "groups": [
+      {
+        "group_id": 1,
+        "fingerprint": "93034e20417c9d2ee708b2bf9e83521eabe454531294f0717615b51f4a8eee32",
+        "application_count": 2,
+        "total_size_bytes": 88,
+        "reclaimable_bytes": 44,
+        "verification_status": "byte_verified",
+        "applications": [
+          {
+            "id": 1,
+            "name": "code",
+            "path": "C:\\Users\\User\\Documents\\IADCS\\sample_apps\\DevApp",
+            "category": "Development",
+            "size_bytes": 44,
+            "file_count": 2
+          },
+          {
+            "id": 28,
+            "name": "code",
+            "path": "C:\\Users\\User\\Documents\\IADCS\\sample_apps\\DevApp_Backup",
+            "category": "Development",
+            "size_bytes": 44,
+            "file_count": 2
+          }
+        ]
+      }
+    ]
+  },
+  "categorization_summary": {
+    "category_breakdown": {
+      "Other": 14,
+      "Development": 3,
+      "Media": 1
+    },
+    "total_categories": 3
+  },
+  "removal_summary": {
+    "operations": [],
+    "total_reclaimed_bytes": 0
+  }
+}

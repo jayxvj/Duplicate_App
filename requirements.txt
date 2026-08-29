@@ -1,0 +1,25 @@
+# ==============================================================================
+# Intelligent Application Deduplication & Categorization System (IADCS)
+# Project Dependencies (Frontend, Backend, Database/Config, Testing)
+# ==============================================================================
+
+# --- Frontend (GUI Desktop Interface) ---
+PyQt6==6.10.2
+PyQt6-Qt6==6.10.2
+PyQt6_sip==13.11.0
+
+# --- Backend Core (Rule Engine & CLI Presentation) ---
+PyYAML==6.0.2
+rich==14.0.0
+
+# --- File System & Safe Removal (Trash/Recycle Bin) ---
+Send2Trash==2.1.0
+
+# --- Database & Storage ---
+# SQLite 3.x is natively included in Python standard library (sqlite3)
+
+# --- Testing & Quality Assurance ---
+pytest==9.1.1
+anyio==3.7.1
+iniconfig==2.3.0
+pluggy==1.6.0

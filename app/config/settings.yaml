@@ -1,0 +1,27 @@
+# IADCS Configuration Settings
+
+general:
+  app_name: "Intelligent Application Deduplication & Categorization System"
+  version: "1.0.0"
+  db_path: "iadcs_data.db"
+  quarantine_dir: ".iadcs_quarantine"
+  log_level: "INFO"
+  log_file: "iadcs_audit.log"
+
+hashing:
+  chunk_size_bytes: 4194304  # 4 MB
+  partial_chunk_bytes: 4096   # 4 KB (header, middle, footer)
+  size_threshold_for_partial: 1048576 # 1 MB
+  verify_byte_by_byte: true
+
+scanner:
+  follow_symlinks: false
+  max_workers: 4
+  default_exclusions:
+    - "$RECYCLE.BIN"
+    - "System Volume Information"
+    - "node_modules"
+    - ".git"
+    - ".venv"
+    - "__pycache__"
+    - ".iadcs_quarantine"

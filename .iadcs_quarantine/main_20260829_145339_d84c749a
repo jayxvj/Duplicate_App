@@ -1,0 +1,27 @@
+import pandas as pd
+
+# Read the CSV
+df = pd.read_csv("metadata.csv")
+
+# Extract prefix (clean/dirty)
+df["prefix"] = df["filename"].str.extract(r"([A-Za-z]+)")
+
+# Extract number
+df["number"] = df["filename"].str.extract(r"(\d+)").astype(int)
+
+# Sort: clean first, then dirty, then by number
+df["prefix"] = pd.Categorical(
+    df["prefix"],
+    categories=["clean", "dirty"],
+    ordered=True
+)
+
+df_sorted = df.sort_values(by=["prefix", "number"])
+
+# Remove helper columns
+df_sorted = df_sorted.drop(columns=["prefix", "number"])
+
+# Save
+df_sorted.to_csv("metadata_sorted_sep.csv", index=False)
+
+print(df_sorted)
