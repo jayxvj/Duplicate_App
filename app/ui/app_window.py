@@ -1,4 +1,4 @@
-"""Main application window and navigation controller."""
+"""Main application window and navigation controller with Stitch Obsidian Logic styling."""
 import sys
 from PyQt6.QtWidgets import (
     QApplication,
@@ -13,7 +13,6 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
 
 from app.database.db import init_db
 from app.database.repository import Repository
@@ -30,9 +29,9 @@ from app.ui.reports_view import ReportsView
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("IADCS — Intelligent Application Deduplication & Categorization System")
-        self.resize(1180, 750)
-        self.setMinimumSize(950, 600)
+        self.setWindowTitle("IADCS — Intelligent Duplicate Application & File Finder")
+        self.resize(1200, 780)
+        self.setMinimumSize(980, 640)
 
         # Initialize SQLite Database & Repository
         init_db()
@@ -52,13 +51,13 @@ class MainWindow(QMainWindow):
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
         side_layout = QVBoxLayout(sidebar)
-        side_layout.setContentsMargins(8, 16, 8, 16)
+        side_layout.setContentsMargins(10, 18, 10, 18)
         side_layout.setSpacing(4)
 
         # App Logo & Branding
-        lbl_title = QLabel("IADCS Core")
+        lbl_title = QLabel("IADCS Sentinel")
         lbl_title.setObjectName("SidebarTitle")
-        lbl_sub = QLabel("Content-First Deduplication")
+        lbl_sub = QLabel("INTELLIGENT DEDUPLICATION")
         lbl_sub.setObjectName("SidebarSubtitle")
         side_layout.addWidget(lbl_title)
         side_layout.addWidget(lbl_sub)
@@ -68,17 +67,17 @@ class MainWindow(QMainWindow):
 
         self.btn_nav_dash = self._create_nav_button("📊  Dashboard", 0)
         self.btn_nav_scan = self._create_nav_button("🔍  Scan Directories", 1)
-        self.btn_nav_inv = self._create_nav_button("📦  Inventory", 2)
-        self.btn_nav_dup = self._create_nav_button("👥  Duplicates Review", 3)
+        self.btn_nav_dup = self._create_nav_button("👥  Duplicates Review", 2)
+        self.btn_nav_inv = self._create_nav_button("📦  Inventory", 3)
         self.btn_nav_cat = self._create_nav_button("🏷️  Categories", 4)
-        self.btn_nav_rules = self._create_nav_button("⚙️  Rule Editor", 5)
-        self.btn_nav_rep = self._create_nav_button("📄  Reports & Logs", 6)
+        self.btn_nav_rules = self._create_nav_button("⚙️  Rule Engine", 5)
+        self.btn_nav_rep = self._create_nav_button("📄  Reports & Audit", 6)
 
         for btn in [
             self.btn_nav_dash,
             self.btn_nav_scan,
-            self.btn_nav_inv,
             self.btn_nav_dup,
+            self.btn_nav_inv,
             self.btn_nav_cat,
             self.btn_nav_rules,
             self.btn_nav_rep,
@@ -88,8 +87,14 @@ class MainWindow(QMainWindow):
         side_layout.addStretch()
 
         # Footer info in sidebar
-        lbl_ver = QLabel("v1.0.0 • SQLite WAL")
-        lbl_ver.setStyleSheet("color: #475569; font-size: 11px; padding: 8px 12px;")
+        lbl_safe = QLabel("🛡 Safe Mode: Active")
+        lbl_safe.setProperty("class", "badge-emerald")
+        lbl_safe.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        side_layout.addWidget(lbl_safe)
+
+        lbl_ver = QLabel("v1.2.0 • Obsidian Logic")
+        lbl_ver.setStyleSheet("color: #475569; font-size: 11px; padding: 6px 12px; text-align: center;")
+        lbl_ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
         side_layout.addWidget(lbl_ver)
 
         root_layout.addWidget(sidebar)
@@ -99,16 +104,16 @@ class MainWindow(QMainWindow):
 
         self.view_dashboard = DashboardView(self.repo)
         self.view_scan = ScanView(self.repo)
-        self.view_inventory = InventoryView(self.repo)
         self.view_duplicate = DuplicateView(self.repo)
+        self.view_inventory = InventoryView(self.repo)
         self.view_category = CategoryView(self.repo)
         self.view_rules = RulesView(self.repo)
         self.view_reports = ReportsView(self.repo)
 
         self.stack.addWidget(self.view_dashboard)  # Index 0
         self.stack.addWidget(self.view_scan)       # Index 1
-        self.stack.addWidget(self.view_inventory)  # Index 2
-        self.stack.addWidget(self.view_duplicate)  # Index 3
+        self.stack.addWidget(self.view_duplicate)  # Index 2
+        self.stack.addWidget(self.view_inventory)  # Index 3
         self.stack.addWidget(self.view_category)   # Index 4
         self.stack.addWidget(self.view_rules)      # Index 5
         self.stack.addWidget(self.view_reports)    # Index 6
@@ -118,6 +123,8 @@ class MainWindow(QMainWindow):
         # Connect Signals
         self.btn_nav_dash.setChecked(True)
         self.view_dashboard.navigateTo.connect(self._navigate_by_name)
+        self.view_dashboard.triggerScan.connect(self._on_trigger_scan)
+        self.view_scan.navigateToReview.connect(lambda: self._navigate_by_name("duplicates"))
         self.view_scan.scanCompleted.connect(self._on_data_updated)
         self.view_duplicate.duplicatesModified.connect(self._on_data_updated)
         self.view_rules.rulesModified.connect(self._on_data_updated)
@@ -132,7 +139,6 @@ class MainWindow(QMainWindow):
 
     def switch_view(self, index: int):
         self.stack.setCurrentIndex(index)
-        # Auto-refresh view data when navigated to
         current_widget = self.stack.currentWidget()
         if hasattr(current_widget, "refresh_data"):
             current_widget.refresh_data()
@@ -143,8 +149,8 @@ class MainWindow(QMainWindow):
         mapping = {
             "dashboard": 0,
             "scan": 1,
-            "inventory": 2,
-            "duplicates": 3,
+            "duplicates": 2,
+            "inventory": 3,
             "categories": 4,
             "rules": 5,
             "reports": 6,
@@ -154,6 +160,10 @@ class MainWindow(QMainWindow):
         if btn:
             btn.setChecked(True)
         self.switch_view(idx)
+
+    def _on_trigger_scan(self, paths: list):
+        self._navigate_by_name("scan")
+        self.view_scan.start_scan_with_paths(paths)
 
     def _on_data_updated(self):
         # Refresh all views with updated data

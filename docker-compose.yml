@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # CLI Runner / Background Scanner
+  iadcs-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: iadcs_duplicate_scanner
+    volumes:
+      - ./:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      - QT_QPA_PLATFORM=offscreen
+      - DISPLAY=${DISPLAY:-:0}
+    command: ["scan", "--path", "/app/sample_apps"]
+
+  # Automated Test Suite Container
+  iadcs-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: iadcs_test_runner
+    environment:
+      - QT_QPA_PLATFORM=offscreen
+    command: ["python", "-m", "pytest", "tests/", "-v"]
+
+  # Interactive Web Dashboard Container
+  iadcs-web:
+    image: python:3.12-alpine
+    container_name: iadcs_web_ui
+    working_dir: /app/web
+    volumes:
+      - ./web:/app/web
+    ports:
+      - "8080:8080"
+    command: ["python", "-m", "http.server", "8080"]

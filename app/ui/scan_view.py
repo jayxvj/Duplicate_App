@@ -1,4 +1,4 @@
-"""Scan configuration and live execution view with background threading."""
+"""Scan configuration and live execution view with background threading and Obsidian Logic styling."""
 import time
 import uuid
 from pathlib import Path
@@ -120,6 +120,7 @@ class ScanWorker(QThread):
 
 class ScanView(QWidget):
     scanCompleted = pyqtSignal()
+    navigateToReview = pyqtSignal()
 
     def __init__(self, repository: Repository, parent=None):
         super().__init__(parent)
@@ -134,40 +135,69 @@ class ScanView(QWidget):
 
         # Title
         title_box = QVBoxLayout()
-        title = QLabel("Scan Manager")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #ffffff;")
-        subtitle = QLabel("Configure scan directories, exclusions, and initiate content analysis")
+        title = QLabel("Scan Manager & Directory Discovery")
+        title.setStyleSheet("font-size: 22px; font-weight: 700; color: #ffffff;")
+        subtitle = QLabel("Select directories to scan, customize safety exclusions, and run multi-stage hashing")
         subtitle.setStyleSheet("color: #94a3b8; font-size: 13px;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
         layout.addLayout(title_box)
 
+        # Preset Quick Chips Row
+        presets_bar = QHBoxLayout()
+        presets_lbl = QLabel("Quick Presets:")
+        presets_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: 600;")
+        presets_bar.addWidget(presets_lbl)
+
+        btn_add_downloads = QPushButton("📥 Add Downloads")
+        btn_add_downloads.setProperty("class", "btn-secondary")
+        btn_add_downloads.clicked.connect(lambda: self._add_specific_path(str(Path.home() / "Downloads")))
+
+        btn_add_home = QPushButton("💻 Add User Directory")
+        btn_add_home.setProperty("class", "btn-secondary")
+        btn_add_home.clicked.connect(lambda: self._add_specific_path(str(Path.home())))
+
+        btn_add_sample = QPushButton("📦 Add Sample Apps")
+        btn_add_sample.setProperty("class", "btn-secondary")
+        btn_add_sample.clicked.connect(lambda: self._add_specific_path(str(Path("sample_apps").resolve())))
+
+        presets_bar.addWidget(btn_add_downloads)
+        presets_bar.addWidget(btn_add_home)
+        presets_bar.addWidget(btn_add_sample)
+        presets_bar.addStretch()
+        layout.addLayout(presets_bar)
+
         # Main Configuration Layout
         config_layout = QHBoxLayout()
+        config_layout.setSpacing(16)
 
         # Left: Target Directories
         dir_frame = QFrame()
         dir_frame.setProperty("class", "card")
         dir_layout = QVBoxLayout(dir_frame)
         dir_head = QLabel("Target Directories to Scan")
-        dir_head.setStyleSheet("font-weight: 600; color: #ffffff;")
+        dir_head.setStyleSheet("font-weight: 700; color: #ffffff; font-size: 14px;")
         dir_layout.addWidget(dir_head)
 
         self.dir_list = QListWidget()
-        self.dir_list.setStyleSheet("background-color: #121317; border: 1px solid #232530; border-radius: 6px;")
         dir_layout.addWidget(self.dir_list)
 
         dir_btn_row = QHBoxLayout()
-        btn_add_dir = QPushButton("+ Add Directory")
-        btn_add_dir.setProperty("class", "btn-secondary")
+        btn_add_dir = QPushButton("+ Add Custom Directory...")
+        btn_add_dir.setProperty("class", "btn-primary")
         btn_add_dir.clicked.connect(self._add_directory)
 
-        btn_rem_dir = QPushButton("Remove")
+        btn_rem_dir = QPushButton("Remove Selected")
         btn_rem_dir.setProperty("class", "btn-secondary")
         btn_rem_dir.clicked.connect(self._remove_directory)
 
+        btn_clear_dirs = QPushButton("Clear All")
+        btn_clear_dirs.setProperty("class", "btn-secondary")
+        btn_clear_dirs.clicked.connect(self.dir_list.clear)
+
         dir_btn_row.addWidget(btn_add_dir)
         dir_btn_row.addWidget(btn_rem_dir)
+        dir_btn_row.addWidget(btn_clear_dirs)
         dir_layout.addLayout(dir_btn_row)
         config_layout.addWidget(dir_frame, stretch=1)
 
@@ -175,12 +205,11 @@ class ScanView(QWidget):
         excl_frame = QFrame()
         excl_frame.setProperty("class", "card")
         excl_layout = QVBoxLayout(excl_frame)
-        excl_head = QLabel("Exclusion Filters")
-        excl_head.setStyleSheet("font-weight: 600; color: #ffffff;")
+        excl_head = QLabel("Safety Exclusion Filters")
+        excl_head.setStyleSheet("font-weight: 700; color: #ffffff; font-size: 14px;")
         excl_layout.addWidget(excl_head)
 
         self.excl_list = QListWidget()
-        self.excl_list.setStyleSheet("background-color: #121317; border: 1px solid #232530; border-radius: 6px;")
         # Add default exclusions
         for default_ex in ["$RECYCLE.BIN", "System Volume Information", "node_modules", ".git", ".venv", "__pycache__", ".iadcs_quarantine"]:
             self.excl_list.addItem(default_ex)
@@ -188,7 +217,7 @@ class ScanView(QWidget):
 
         excl_input_row = QHBoxLayout()
         self.excl_input = QLineEdit()
-        self.excl_input.setPlaceholderText("e.g. temp, downloads")
+        self.excl_input.setPlaceholderText("Filter name e.g. temp, cache, build")
         btn_add_excl = QPushButton("+ Add Exclusion")
         btn_add_excl.setProperty("class", "btn-secondary")
         btn_add_excl.clicked.connect(self._add_exclusion)
@@ -203,11 +232,12 @@ class ScanView(QWidget):
         prog_frame = QFrame()
         prog_frame.setProperty("class", "card")
         prog_layout = QVBoxLayout(prog_frame)
+        prog_layout.setSpacing(12)
 
         act_row = QHBoxLayout()
-        self.btn_start = QPushButton("▶ Start Content-Based Scan")
+        self.btn_start = QPushButton("▶ Start Multi-Stage Scan")
         self.btn_start.setProperty("class", "btn-primary")
-        self.btn_start.setStyleSheet("padding: 10px 24px; font-size: 14px;")
+        self.btn_start.setStyleSheet("padding: 11px 26px; font-size: 14px; font-weight: 700;")
         self.btn_start.clicked.connect(self.start_scan)
 
         self.btn_cancel = QPushButton("⏹ Cancel Scan")
@@ -215,13 +245,19 @@ class ScanView(QWidget):
         self.btn_cancel.setEnabled(False)
         self.btn_cancel.clicked.connect(self.cancel_scan)
 
+        self.btn_view_dups = QPushButton("🔍 Go to Duplicates Review")
+        self.btn_view_dups.setProperty("class", "btn-success")
+        self.btn_view_dups.setVisible(False)
+        self.btn_view_dups.clicked.connect(lambda: self.navigateToReview.emit())
+
         act_row.addWidget(self.btn_start)
         act_row.addWidget(self.btn_cancel)
         act_row.addStretch()
+        act_row.addWidget(self.btn_view_dups)
         prog_layout.addLayout(act_row)
 
-        self.lbl_status = QLabel("Status: Idle")
-        self.lbl_status.setStyleSheet("color: #94a3b8; font-weight: 500; margin-top: 10px;")
+        self.lbl_status = QLabel("Status: Ready to scan.")
+        self.lbl_status.setStyleSheet("color: #dae2fd; font-weight: 600; font-size: 13px; margin-top: 6px;")
         prog_layout.addWidget(self.lbl_status)
 
         self.progress_bar = QProgressBar()
@@ -229,19 +265,22 @@ class ScanView(QWidget):
         prog_layout.addWidget(self.progress_bar)
 
         self.lbl_current_file = QLabel("")
-        self.lbl_current_file.setStyleSheet("color: #64748b; font-size: 11px;")
+        self.lbl_current_file.setStyleSheet("color: #94a3b8; font-size: 11px; font-family: 'JetBrains Mono', monospace;")
         prog_layout.addWidget(self.lbl_current_file)
 
         layout.addWidget(prog_frame)
         layout.addStretch()
 
-    def _add_directory(self):
-        path = QFileDialog.getExistingDirectory(self, "Select Directory to Scan")
-        if path:
-            # Avoid duplicates
+    def _add_specific_path(self, path: str):
+        if Path(path).exists():
             items = [self.dir_list.item(i).text() for i in range(self.dir_list.count())]
             if path not in items:
                 self.dir_list.addItem(path)
+
+    def _add_directory(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Directory to Scan")
+        if path:
+            self._add_specific_path(path)
 
     def _remove_directory(self):
         row = self.dir_list.currentRow()
@@ -254,6 +293,14 @@ class ScanView(QWidget):
             self.excl_list.addItem(text)
             self.excl_input.clear()
 
+    def start_scan_with_paths(self, paths: List[str]):
+        self.dir_list.clear()
+        for p in paths:
+            if Path(p).exists():
+                self.dir_list.addItem(p)
+        if self.dir_list.count() > 0:
+            self.start_scan()
+
     def start_scan(self):
         paths = [self.dir_list.item(i).text() for i in range(self.dir_list.count())]
         if not paths:
@@ -264,8 +311,9 @@ class ScanView(QWidget):
 
         self.btn_start.setEnabled(False)
         self.btn_cancel.setEnabled(True)
+        self.btn_view_dups.setVisible(False)
         self.progress_bar.setValue(0)
-        self.lbl_status.setText("Status: Initializing scan...")
+        self.lbl_status.setText("Status: Initializing scan pipeline...")
 
         self.worker = ScanWorker(paths, exclusions, self.repo)
         self.worker.progress_update.connect(self._on_progress)
@@ -283,21 +331,21 @@ class ScanView(QWidget):
     def _on_progress(self, p: ScanProgress):
         self.progress_bar.setValue(int(p.percent))
         phase_str = p.phase.capitalize()
-        self.lbl_status.setText(f"Status: {phase_str} — Discovered {p.apps_found} apps, {p.files_scanned} files processed")
+        self.lbl_status.setText(f"Status: [{phase_str}] — Found {p.apps_found} applications, {p.files_scanned} files inspected")
         if p.current_path:
-            self.lbl_current_file.setText(f"Current: {p.current_path}")
+            self.lbl_current_file.setText(f"Path: {p.current_path}")
 
     def _on_complete(self, scan_id: str, apps: list, groups: list, duration: float):
         self.btn_start.setEnabled(True)
         self.btn_cancel.setEnabled(False)
         self.progress_bar.setValue(100)
-        self.lbl_status.setText(f"Status: Completed! Found {len(apps)} apps and {len(groups)} duplicate groups in {duration:.2f}s.")
+        self.lbl_status.setText(f"Status: Completed in {duration:.2f}s! Found {len(apps)} apps & {len(groups)} duplicate groups.")
         self.lbl_current_file.setText("")
-        QMessageBox.information(self, "Scan Complete", f"Scan finished successfully in {duration:.2f}s.\nDiscovered {len(apps)} applications.\nDetected {len(groups)} duplicate groups.")
+        self.btn_view_dups.setVisible(True)
         self.scanCompleted.emit()
 
     def _on_error(self, err_msg: str):
         self.btn_start.setEnabled(True)
         self.btn_cancel.setEnabled(False)
-        self.lbl_status.setText(f"Status: Error occurred — {err_msg}")
+        self.lbl_status.setText(f"Status: Error — {err_msg}")
         QMessageBox.critical(self, "Scan Error", f"An error occurred during scan:\n{err_msg}")

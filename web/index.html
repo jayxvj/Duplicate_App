@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IADCS — Intelligent Duplicate Application & File Finder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🛡️</div>
+                <div>
+                    <h1 class="sidebar-title">IADCS Sentinel</h1>
+                    <p class="sidebar-subtitle">INTELLIGENT DEDUPLICATION</p>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-tab="dashboard">
+                    <span class="icon">📊</span> Dashboard
+                </button>
+                <button class="nav-btn" data-tab="scan">
+                    <span class="icon">🔍</span> Scan Folders
+                </button>
+                <button class="nav-btn" data-tab="duplicates">
+                    <span class="icon">👥</span> Duplicates Review
+                    <span class="badge-count" id="nav-dup-badge">3</span>
+                </button>
+                <button class="nav-btn" data-tab="categories">
+                    <span class="icon">🏷️</span> Categories
+                </button>
+                <button class="nav-btn" data-tab="quarantine">
+                    <span class="icon">🛡️</span> Safe Quarantine
+                </button>
+                <button class="nav-btn" data-tab="reports">
+                    <span class="icon">📄</span> Audit Reports
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="badge badge-emerald">
+                    <span>🛡 Safe Mode: Active</span>
+                </div>
+                <div class="version-tag">v1.2.0 • Obsidian Logic</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-header">
+                <div>
+                    <h2 class="page-title" id="page-title">System Overview</h2>
+                    <p class="page-subtitle" id="page-subtitle">Content-based application discovery & deterministic SHA-256 deduplication</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="btn-refresh-data">🔄 Refresh</button>
+                    <button class="btn btn-primary" id="btn-quick-scan-top">⚡ 1-Click Quick Scan</button>
+                </div>
+            </header>
+
+            <!-- TAB 1: DASHBOARD -->
+            <section class="tab-content active" id="tab-dashboard">
+                <!-- 4 Metric Cards -->
+                <div class="stats-grid">
+                    <div class="card stat-card">
+                        <div class="card-title">Total Applications</div>
+                        <div class="card-value" id="stat-total-apps">24</div>
+                        <div class="card-subtitle text-indigo">Tracked installations</div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="card-title">Duplicate Groups</div>
+                        <div class="card-value text-amber" id="stat-dup-groups">4 Groups</div>
+                        <div class="card-subtitle text-amber">11 redundant copies</div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="card-title">Reclaimable Storage</div>
+                        <div class="card-value text-emerald" id="stat-reclaimable">4.82 GB</div>
+                        <div class="card-subtitle text-emerald">100% Safe to clean</div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="card-title">Categories</div>
+                        <div class="card-value text-purple" id="stat-categories">7 Active</div>
+                        <div class="card-subtitle text-purple">Automatic rule engine</div>
+                    </div>
+                </div>
+
+                <!-- 1-Click Dropzone Hero -->
+                <div class="card dropzone-card" id="dropzone">
+                    <div class="dropzone-header">
+                        <div>
+                            <h3 class="dropzone-title">🚀 1-Click Scan & Folder Drag-and-Drop</h3>
+                            <p class="dropzone-desc">Drop any drive or folder to scan, or select common directories for instant duplicate discovery.</p>
+                        </div>
+                        <button class="btn btn-primary btn-lg" id="btn-hero-scan">⚡ Run Instant Scan</button>
+                    </div>
+
+                    <div class="preset-chips-row">
+                        <span class="preset-label">Quick Scan Presets:</span>
+                        <button class="chip-btn" data-preset="Downloads">📥 Downloads</button>
+                        <button class="chip-btn" data-preset="User Home">💻 User Profile</button>
+                        <button class="chip-btn" data-preset="Program Files">📂 Program Files</button>
+                        <button class="chip-btn" data-preset="Sample Apps">📦 Sample Test Apps</button>
+                    </div>
+                </div>
+
+                <!-- Split Cards -->
+                <div class="split-grid">
+                    <div class="card">
+                        <h3 class="section-title">Top Application Categories</h3>
+                        <div class="category-list" id="category-list">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="section-title">System Status & Safeguards</h3>
+                        <div class="safeguard-box">
+                            <div class="status-item">
+                                <span class="status-icon">✓</span>
+                                <div>
+                                    <strong>Multi-Stage Deterministic Hashing</strong>
+                                    <p>Size Filter ➔ Partial Chunks (Head/Mid/Tail) ➔ Full SHA-256 Streaming</p>
+                                </div>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-icon">✓</span>
+                                <div>
+                                    <strong>Protected System Directory Guard</strong>
+                                    <p>Windows, System32, and OS system files are strictly protected from deletion</p>
+                                </div>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-icon">✓</span>
+                                <div>
+                                    <strong>Pre-Removal Drift Verification</strong>
+                                    <p>Live hash validation before any quarantine or cleanup operation</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: SCAN MANAGER -->
+            <section class="tab-content" id="tab-scan">
+                <div class="scan-grid">
+                    <div class="card">
+                        <h3 class="section-title">Target Scan Directories</h3>
+                        <div class="folder-list" id="scan-folder-list">
+                            <div class="folder-item">
+                                <span>📁 C:\Users\Default\Downloads</span>
+                                <button class="btn-icon">✕</button>
+                            </div>
+                            <div class="folder-item">
+                                <span>📁 D:\Applications</span>
+                                <button class="btn-icon">✕</button>
+                            </div>
+                        </div>
+                        <div class="folder-actions">
+                            <input type="text" class="input-field" id="input-new-dir" placeholder="Enter path e.g. D:\Backups">
+                            <button class="btn btn-secondary" id="btn-add-dir">+ Add Path</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="section-title">Safety Exclusion Filters</h3>
+                        <div class="folder-list">
+                            <div class="folder-item">🛡️ $RECYCLE.BIN</div>
+                            <div class="folder-item">🛡️ System Volume Information</div>
+                            <div class="folder-item">🛡️ node_modules</div>
+                            <div class="folder-item">🛡️ .git & .venv</div>
+                        </div>
+                        <div class="folder-actions">
+                            <input type="text" class="input-field" placeholder="Add exclusion e.g. cache">
+                            <button class="btn btn-secondary">+ Add</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card scan-progress-card">
+                    <div class="scan-controls">
+                        <button class="btn btn-primary btn-lg" id="btn-start-scan">▶ Start Multi-Stage Scan</button>
+                        <button class="btn btn-secondary" id="btn-cancel-scan" disabled>⏹ Cancel</button>
+                        <span class="scan-status-text" id="scan-live-status">Status: Ready to scan.</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="progress-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: DUPLICATES REVIEW -->
+            <section class="tab-content" id="tab-duplicates">
+                <!-- Smart Selection Toolbar -->
+                <div class="card toolbar-card">
+                    <div class="toolbar-left">
+                        <button class="btn btn-secondary" id="btn-auto-select">⚡ Auto-Select (Keep 1 Original)</button>
+                        <button class="btn btn-secondary" id="btn-keep-newest">🕒 Keep Newest</button>
+                        <button class="btn btn-secondary" id="btn-keep-oldest">🕰 Keep Oldest</button>
+                        <button class="btn btn-secondary" id="btn-deselect-all">Deselect All</button>
+                    </div>
+                    <div class="toolbar-right">
+                        <input type="text" class="input-field search-input" id="search-duplicates" placeholder="Filter by app or category...">
+                    </div>
+                </div>
+
+                <!-- Duplicate Groups Container -->
+                <div class="duplicate-groups-list" id="duplicate-groups-list">
+                    <!-- Injected dynamically -->
+                </div>
+
+                <!-- Sticky Action Cleanup Bar -->
+                <div class="card sticky-action-bar">
+                    <div class="action-summary" id="selection-summary">
+                        Selected: <strong>3 redundant copies (2.4 GB)</strong>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" id="btn-action-quarantine">🛡 Safe Quarantine (Recommended)</button>
+                        <button class="btn btn-secondary" id="btn-action-trash">🗑 Move to Trash</button>
+                        <button class="btn btn-danger" id="btn-action-delete">Permanently Delete</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: CATEGORIES -->
+            <section class="tab-content" id="tab-categories">
+                <div class="card">
+                    <h3 class="section-title">Application Distribution by Category</h3>
+                    <div class="categories-grid" id="full-categories-grid">
+                        <!-- Injected dynamically -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: QUARANTINE -->
+            <section class="tab-content" id="tab-quarantine">
+                <div class="card">
+                    <h3 class="section-title">🛡️ Quarantined Applications (100% Recoverable)</h3>
+                    <p class="section-desc">Applications placed in quarantine are isolated safely with original folder manifests. You can restore them anytime with a single click.</p>
+                    <div class="quarantine-list" id="quarantine-list">
+                        <!-- Injected dynamically -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: REPORTS -->
+            <section class="tab-content" id="tab-reports">
+                <div class="card">
+                    <div class="report-header">
+                        <div>
+                            <h3 class="section-title">Audit Log & Compliance Report</h3>
+                            <p class="section-desc">Deterministic JSON audit records of discovery, hashing, and cleanup actions.</p>
+                        </div>
+                        <button class="btn btn-secondary" id="btn-export-json">💾 Export JSON Report</button>
+                    </div>
+                    <pre class="json-report-viewer" id="json-report-viewer"></pre>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

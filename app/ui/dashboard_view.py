@@ -1,4 +1,6 @@
-"""Dashboard view with metrics, storage recovery hero card, and quick insights."""
+"""Dashboard view with Obsidian Logic metrics, 1-Click Quick Scan, and storage recovery."""
+import os
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -24,6 +26,7 @@ def format_bytes(bytes_count: int) -> str:
 
 class DashboardView(QWidget):
     navigateTo = pyqtSignal(str)  # signal to switch tabs ("scan", "duplicates", etc.)
+    triggerScan = pyqtSignal(list)  # signal with paths list to scan immediately
 
     def __init__(self, repository: Repository, parent=None):
         super().__init__(parent)
@@ -35,24 +38,32 @@ class DashboardView(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(20)
 
-        # Header Title
+        # Header Title with Live Safe Mode Badge
+        header_layout = QHBoxLayout()
         title_box = QVBoxLayout()
-        title = QLabel("System Overview")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #ffffff;")
-        subtitle = QLabel("Intelligent content-based application discovery & deduplication analytics")
+        title = QLabel("Application Deduplication Dashboard")
+        title.setStyleSheet("font-size: 22px; font-weight: 700; color: #ffffff;")
+        subtitle = QLabel("Intelligent content-based application discovery & deterministic SHA-256 deduplication")
         subtitle.setStyleSheet("color: #94a3b8; font-size: 13px;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
-        layout.addLayout(title_box)
+        header_layout.addLayout(title_box)
+        header_layout.addStretch()
 
-        # Metric Cards Row (4 cards)
+        # Safe Mode Shield Badge
+        safe_badge = QLabel("🛡 Safe Mode: Active (OS Protected)")
+        safe_badge.setProperty("class", "badge-emerald")
+        header_layout.addWidget(safe_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addLayout(header_layout)
+
+        # Metric Cards Row (4 cards matching Stitch Obsidian Logic)
         cards_grid = QGridLayout()
         cards_grid.setSpacing(16)
 
-        self.card_apps = self._create_card("Total Discovered Apps", "0", "Discovered", "#6366f1")
-        self.card_dups = self._create_card("Duplicate Groups", "0", "Active Groups", "#f59e0b")
-        self.card_space = self._create_card("Reclaimable Storage", "0 B", "Potential Recovery", "#10b981")
-        self.card_cats = self._create_card("Categories", "0", "Organized", "#8b5cf6")
+        self.card_apps = self._create_card("Total Apps Tracked", "0", "Discovered installations", "#c0c1ff")
+        self.card_dups = self._create_card("Duplicate Groups", "0", "Redundant groups found", "#f59e0b")
+        self.card_space = self._create_card("Reclaimable Storage", "0 B", "100% Safe to clean", "#10b981")
+        self.card_cats = self._create_card("Categories", "0", "Organized domains", "#818cf8")
 
         cards_grid.addWidget(self.card_apps, 0, 0)
         cards_grid.addWidget(self.card_dups, 0, 1)
@@ -60,52 +71,71 @@ class DashboardView(QWidget):
         cards_grid.addWidget(self.card_cats, 0, 3)
         layout.addLayout(cards_grid)
 
-        # Hero Storage Recovery Banner
-        hero_card = QFrame()
-        hero_card.setObjectName("HeroCard")
-        hero_card.setStyleSheet("""
-            QFrame#HeroCard {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a1b2e, stop:1 #13141f);
-                border: 1px solid #2d2f45;
-                border-radius: 10px;
-                padding: 24px;
-            }
-        """)
-        hero_layout = QHBoxLayout(hero_card)
+        # 1-Click Quick Scan & Folder Drop Zone Hero Card
+        drop_card = QFrame()
+        drop_card.setObjectName("DropZone")
+        drop_layout = QVBoxLayout(drop_card)
+        drop_layout.setSpacing(14)
+        drop_layout.setContentsMargins(20, 20, 20, 20)
 
-        hero_text_layout = QVBoxLayout()
-        hero_title = QLabel("Optimize Local Application Footprint")
-        hero_title.setStyleSheet("font-size: 17px; font-weight: bold; color: #ffffff;")
-        hero_desc = QLabel("Scan drives to discover redundant installations and recover storage through deterministic SHA-256 fingerprinting.")
-        hero_desc.setStyleSheet("color: #94a3b8; font-size: 13px; margin-top: 4px;")
-        hero_text_layout.addWidget(hero_title)
-        hero_text_layout.addWidget(hero_desc)
+        drop_top = QHBoxLayout()
+        drop_title_box = QVBoxLayout()
+        drop_title = QLabel("🚀 1-Click Quick Scan & Folder Scanner")
+        drop_title.setStyleSheet("font-size: 16px; font-weight: 700; color: #ffffff;")
+        drop_desc = QLabel("Instantly scan common directories or choose custom drives to identify duplicate software without data risk.")
+        drop_desc.setStyleSheet("color: #94a3b8; font-size: 13px; margin-top: 2px;")
+        drop_title_box.addWidget(drop_title)
+        drop_title_box.addWidget(drop_desc)
+        drop_top.addLayout(drop_title_box)
+        drop_top.addStretch()
 
-        hero_actions = QHBoxLayout()
-        btn_scan = QPushButton("Start New Scan")
-        btn_scan.setProperty("class", "btn-primary")
-        btn_scan.clicked.connect(lambda: self.navigateTo.emit("scan"))
+        btn_quick_scan = QPushButton("⚡ 1-Click Scan Common Folders")
+        btn_quick_scan.setProperty("class", "btn-primary")
+        btn_quick_scan.clicked.connect(self._scan_common_folders)
+        drop_top.addWidget(btn_quick_scan, alignment=Qt.AlignmentFlag.AlignVCenter)
+        drop_layout.addLayout(drop_top)
 
-        btn_review = QPushButton("Review Duplicates")
-        btn_review.setProperty("class", "btn-secondary")
-        btn_review.clicked.connect(lambda: self.navigateTo.emit("duplicates"))
+        # Preset Quick Chips
+        preset_layout = QHBoxLayout()
+        preset_lbl = QLabel("Quick Presets:")
+        preset_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: 600;")
+        preset_layout.addWidget(preset_lbl)
 
-        hero_actions.addWidget(btn_scan)
-        hero_actions.addWidget(btn_review)
+        btn_preset_downloads = QPushButton("📥 Downloads")
+        btn_preset_downloads.setProperty("class", "btn-secondary")
+        btn_preset_downloads.clicked.connect(lambda: self._scan_preset(Path.home() / "Downloads"))
 
-        hero_layout.addLayout(hero_text_layout, stretch=3)
-        hero_layout.addLayout(hero_actions, stretch=1)
-        layout.addWidget(hero_card)
+        btn_preset_apps = QPushButton("💻 User Profile")
+        btn_preset_apps.setProperty("class", "btn-secondary")
+        btn_preset_apps.clicked.connect(lambda: self._scan_preset(Path.home()))
+
+        btn_preset_custom = QPushButton("📂 Custom Locations...")
+        btn_preset_custom.setProperty("class", "btn-secondary")
+        btn_preset_custom.clicked.connect(lambda: self.navigateTo.emit("scan"))
+
+        btn_review_dups = QPushButton("🔍 Review Duplicates")
+        btn_review_dups.setProperty("class", "btn-secondary")
+        btn_review_dups.clicked.connect(lambda: self.navigateTo.emit("duplicates"))
+
+        preset_layout.addWidget(btn_preset_downloads)
+        preset_layout.addWidget(btn_preset_apps)
+        preset_layout.addWidget(btn_preset_custom)
+        preset_layout.addStretch()
+        preset_layout.addWidget(btn_review_dups)
+        drop_layout.addLayout(preset_layout)
+
+        layout.addWidget(drop_card)
 
         # Bottom section: Category breakdown & Recent Activity
         bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(16)
 
         # Category Card
         self.cat_frame = QFrame()
         self.cat_frame.setProperty("class", "card")
         cat_inner = QVBoxLayout(self.cat_frame)
-        cat_head = QLabel("Category Distribution")
-        cat_head.setStyleSheet("font-size: 14px; font-weight: bold; color: #ffffff; margin-bottom: 8px;")
+        cat_head = QLabel("Top Application Categories")
+        cat_head.setStyleSheet("font-size: 14px; font-weight: 700; color: #ffffff; margin-bottom: 8px;")
         cat_inner.addWidget(cat_head)
 
         self.cat_list_layout = QVBoxLayout()
@@ -113,16 +143,16 @@ class DashboardView(QWidget):
         cat_inner.addStretch()
         bottom_layout.addWidget(self.cat_frame, stretch=1)
 
-        # Recent Activity Card
+        # System Status & Verification Card
         self.activity_frame = QFrame()
         self.activity_frame.setProperty("class", "card")
         act_inner = QVBoxLayout(self.activity_frame)
-        act_head = QLabel("System Status & Verification")
-        act_head.setStyleSheet("font-size: 14px; font-weight: bold; color: #ffffff; margin-bottom: 8px;")
+        act_head = QLabel("System Status & Safeguards")
+        act_head.setStyleSheet("font-size: 14px; font-weight: 700; color: #ffffff; margin-bottom: 8px;")
         act_inner.addWidget(act_head)
 
         self.status_label = QLabel("System Ready. Run a scan to discover applications.")
-        self.status_label.setStyleSheet("color: #94a3b8; font-size: 13px; line-height: 1.5;")
+        self.status_label.setStyleSheet("color: #dae2fd; font-size: 13px; line-height: 1.5;")
         self.status_label.setWordWrap(True)
         act_inner.addWidget(self.status_label)
         act_inner.addStretch()
@@ -137,7 +167,7 @@ class DashboardView(QWidget):
         card = QFrame()
         card.setProperty("class", "card")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(16, 16, 16, 16)
+        c_layout.setContentsMargins(18, 18, 18, 18)
 
         t_lbl = QLabel(title)
         t_lbl.setProperty("class", "card-title")
@@ -145,7 +175,7 @@ class DashboardView(QWidget):
         v_lbl = QLabel(value)
         v_lbl.setObjectName("card_val")
         v_lbl.setProperty("class", "card-value")
-        v_lbl.setStyleSheet(f"font-size: 22px; font-weight: bold; color: {color};")
+        v_lbl.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {color};")
 
         s_lbl = QLabel(subtitle)
         s_lbl.setProperty("class", "card-subtitle")
@@ -154,6 +184,24 @@ class DashboardView(QWidget):
         c_layout.addWidget(v_lbl)
         c_layout.addWidget(s_lbl)
         return card
+
+    def _scan_preset(self, path: Path):
+        if path.exists():
+            self.triggerScan.emit([str(path)])
+        else:
+            self.navigateTo.emit("scan")
+
+    def _scan_common_folders(self):
+        targets = []
+        downloads = Path.home() / "Downloads"
+        if downloads.exists():
+            targets.append(str(downloads))
+        sample_apps = Path("sample_apps")
+        if sample_apps.exists():
+            targets.append(str(sample_apps.resolve()))
+        if not targets:
+            targets.append(str(Path.home()))
+        self.triggerScan.emit(targets)
 
     def refresh_metrics(self):
         apps = self.repo.get_all_applications()
@@ -180,7 +228,6 @@ class DashboardView(QWidget):
             val_cats.setText(str(len(cats)))
 
         # Update category distribution
-        # Clear layout
         while self.cat_list_layout.count():
             item = self.cat_list_layout.takeAt(0)
             if item.widget():
@@ -191,16 +238,16 @@ class DashboardView(QWidget):
             cat_counts[a.category] = cat_counts.get(a.category, 0) + 1
 
         if not cat_counts:
-            empty_lbl = QLabel("No application data available yet.")
+            empty_lbl = QLabel("No application data available yet. Click '1-Click Scan' above to discover applications.")
             empty_lbl.setStyleSheet("color: #64748b; font-style: italic;")
             self.cat_list_layout.addWidget(empty_lbl)
         else:
             for cat_name, count in sorted(cat_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
                 row = QHBoxLayout()
                 lbl_name = QLabel(cat_name)
-                lbl_name.setStyleSheet("color: #e3e2e7; font-weight: 500;")
+                lbl_name.setStyleSheet("color: #dae2fd; font-weight: 500;")
                 lbl_badge = QLabel(f"{count} apps")
-                lbl_badge.setStyleSheet("color: #818cf8; font-weight: 600;")
+                lbl_badge.setProperty("class", "badge-indigo")
                 row.addWidget(lbl_name)
                 row.addStretch()
                 row.addWidget(lbl_badge)
@@ -212,12 +259,17 @@ class DashboardView(QWidget):
         latest = self.repo.get_latest_scan()
         if latest:
             self.status_label.setText(
-                f"Last Scan: {latest.get('started_at')}\n"
-                f"Applications Processed: {latest.get('total_apps')}\n"
-                f"Duplicates Identified: {latest.get('duplicate_groups')}\n"
-                f"Reclaimable Storage: {format_bytes(latest.get('reclaimable_size', 0))}\n\n"
-                "✓ SHA-256 Multi-Stage Pipeline Active\n"
-                "✓ Safety Validator & Protected Directory Guards Enabled"
+                f"<b>Last Scan:</b> {latest.get('started_at')}<br>"
+                f"<b>Apps Analyzed:</b> {latest.get('total_apps')}<br>"
+                f"<b>Duplicates Identified:</b> {latest.get('duplicate_groups')} groups<br>"
+                f"<b>Potential Storage Recovery:</b> {format_bytes(latest.get('reclaimable_size', 0))}<br><br>"
+                "<span style='color:#10b981;'>✓ SHA-256 Multi-Stage Fingerprint Active</span><br>"
+                "<span style='color:#10b981;'>✓ OS Protected Directory Safeguards Active</span>"
             )
         else:
-            self.status_label.setText("No recent scans recorded. Ready to configure and run initial scan.")
+            self.status_label.setText(
+                "System is ready.<br><br>"
+                "<span style='color:#10b981;'>✓ Content-Based Deduplication Engine Loaded</span><br>"
+                "<span style='color:#10b981;'>✓ Protected System Directory Guards Enabled</span><br>"
+                "<span style='color:#818cf8;'>→ Click '1-Click Scan' to start discovery</span>"
+            )
