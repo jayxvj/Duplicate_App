@@ -1,0 +1,13 @@
+{
+  "rules": [
+    { "category": "Browser",       "patterns": ["*chrome*", "*firefox*", "*edge*", "*opera*", "*brave*", "*vivaldi*"] },
+    { "category": "Development",   "patterns": ["*vscode*", "*visual studio*", "*jetbrains*", "*intellij*", "*pycharm*", "*eclipse*", "*android studio*", "*git*", "*node*", "*python*"] },
+    { "category": "Office",        "patterns": ["*microsoft office*", "*libreoffice*", "*openoffice*", "*word*", "*excel*", "*powerpoint*"] },
+    { "category": "Media",         "patterns": ["*vlc*", "*spotify*", "*audacity*", "*gimp*", "*photoshop*", "*lightroom*", "*premiere*", "*obs*"] },
+    { "category": "Communication", "patterns": ["*slack*", "*discord*", "*zoom*", "*teams*", "*skype*", "*telegram*", "*whatsapp*"] },
+    { "category": "Gaming",        "patterns": ["*steam*", "*epic games*", "*gog*", "*battle.net*", "*origin*"] },
+    { "category": "Security",      "patterns": ["*antivirus*", "*malwarebytes*", "*kaspersky*", "*avast*", "*avira*", "*norton*", "*defender*"] },
+    { "category": "Utilities",     "patterns": ["*7-zip*", "*winrar*", "*ccleaner*", "*everything*", "*autohotkey*"] },
+    { "category": "Other",         "patterns": ["*"] }
+  ]
+}
