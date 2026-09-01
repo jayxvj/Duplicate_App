@@ -1,6 +1,6 @@
-﻿// IADCS Web UI Controller - Connected to Live Python Backend API
+﻿// IADCS Sentinel - Obsidian Cyber-Glass Pro Client Controller
 document.addEventListener('DOMContentLoaded', () => {
-    // Application State
+    // Application Reactive State
     const state = {
         totalApps: 0,
         totalSize: 0,
@@ -12,21 +12,42 @@ document.addEventListener('DOMContentLoaded', () => {
         isScanning: false
     };
 
-    // Tab Navigation
+    // UI Elements
     const navButtons = document.querySelectorAll('.nav-btn');
     const tabContents = document.querySelectorAll('.tab-content');
     const pageTitle = document.getElementById('page-title');
     const pageSubtitle = document.getElementById('page-subtitle');
+    const navDupBadge = document.getElementById('nav-dup-badge');
+    const navQuarBadge = document.getElementById('nav-quar-badge');
 
     const titles = {
-        dashboard: { title: "System Overview", subtitle: "Content-based application discovery & deterministic SHA-256 deduplication" },
-        scan: { title: "Scan Manager", subtitle: "Configure target directories, safety exclusions, and run multi-stage pipeline" },
-        duplicates: { title: "Duplicate Applications Review", subtitle: "Compare content-matched groups and reclaim storage with 100% safety" },
-        categories: { title: "Application Categories", subtitle: "Organized domains classified by deterministic rule engine" },
-        quarantine: { title: "Safe Quarantine Vault", subtitle: "Isolated copies with complete one-click restoration manifests" },
-        reports: { title: "Audit Reports & Verification", subtitle: "Machine-readable compliance records and SHA-256 hash logs" }
+        dashboard: { 
+            title: "System Overview", 
+            subtitle: "Content-based application discovery & deterministic SHA-256 deduplication" 
+        },
+        scan: { 
+            title: "Scan Manager & Pipeline", 
+            subtitle: "Configure target directories, safety exclusions, and run multi-stage pipeline" 
+        },
+        duplicates: { 
+            title: "Duplicate Applications Review", 
+            subtitle: "Compare content-matched groups and reclaim storage with 100% safety" 
+        },
+        categories: { 
+            title: "Application Categories", 
+            subtitle: "Organized domains classified by deterministic rule engine" 
+        },
+        quarantine: { 
+            title: "Safe Quarantine Vault", 
+            subtitle: "Isolated copies with complete one-click restoration manifests" 
+        },
+        reports: { 
+            title: "Cryptographic Audit & Compliance", 
+            subtitle: "Machine-readable compliance records and SHA-256 hash logs" 
+        }
     };
 
+    // Navigation Switcher
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const targetTab = btn.getAttribute('data-tab');
@@ -42,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageSubtitle.textContent = titles[targetTab].subtitle;
             }
 
-            // Refresh tab-specific data
+            // Lazy data sync for active tab
             if (targetTab === 'quarantine') loadQuarantine();
             if (targetTab === 'reports') loadReport();
             if (targetTab === 'duplicates') loadDuplicates();
@@ -50,29 +71,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Helper: Format Bytes
+    // Helper: Format Bytes with high precision
     function formatBytes(bytes) {
         if (!bytes || bytes === 0) return "0.0 B";
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Helper: Toast Message
-    function showToast(msg) {
+    // Helper: Modern Toast Notifications
+    function showToast(msg, icon = "ℹ️") {
         const toast = document.getElementById('toast');
-        if (!toast) return;
-        toast.textContent = msg;
+        const toastMsg = document.getElementById('toast-msg');
+        if (!toast || !toastMsg) return;
+        toast.querySelector('.toast-icon').textContent = icon;
+        toastMsg.textContent = msg;
         toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3500);
+        setTimeout(() => toast.classList.remove('show'), 3800);
     }
 
-    // ── API: Load Dashboard Stats ──────────────────────────────
+    // ── API: Load Dashboard Metrics ─────────────────────────────
     async function loadDashboard() {
         try {
             const res = await fetch('/api/dashboard');
-            if (!res.ok) throw new Error("API error");
+            if (!res.ok) throw new Error("Dashboard API returned status " + res.status);
             const data = await res.json();
 
             state.totalApps = data.totalApps || 0;
@@ -80,107 +103,133 @@ document.addEventListener('DOMContentLoaded', () => {
             state.reclaimableSize = data.reclaimableSize || 0;
             state.categories = data.categories || [];
 
-            // Update stats cards in UI if present
+            // Update stats cards in UI
             const totalAppsEl = document.getElementById('stat-total-apps');
             if (totalAppsEl) totalAppsEl.textContent = state.totalApps;
+
+            const dupCountEl = document.getElementById('stat-dup-groups');
+            if (dupCountEl) dupCountEl.textContent = `${data.duplicateGroupsCount || 0} Groups`;
 
             const reclaimEl = document.getElementById('stat-reclaimable');
             if (reclaimEl) reclaimEl.textContent = formatBytes(state.reclaimableSize);
 
-            const dupCountEl = document.getElementById('stat-dup-groups');
-            if (dupCountEl) dupCountEl.textContent = data.duplicateGroupsCount || 0;
+            const catEl = document.getElementById('stat-categories');
+            if (catEl) catEl.textContent = `${state.categories.length} Active`;
+
+            if (navDupBadge) navDupBadge.textContent = data.duplicateGroupsCount || 0;
 
             renderCategories();
         } catch (e) {
-            console.warn("Backend API not reachable or empty, loading fallback data", e);
+            console.warn("Backend API sync failed:", e);
         }
     }
 
-    // ── API: Load Duplicate Groups ─────────────────────────────
+    // ── API: Load Duplicate Groups ──────────────────────────────
     async function loadDuplicates(filterText = "") {
         try {
             const res = await fetch('/api/duplicates');
-            if (!res.ok) throw new Error("API error");
+            if (!res.ok) throw new Error("Duplicates API error");
             const data = await res.json();
             state.duplicateGroups = data || [];
+
+            if (navDupBadge) navDupBadge.textContent = state.duplicateGroups.length;
+            const dupCopiesEl = document.getElementById('stat-dup-copies');
+            if (dupCopiesEl) {
+                const totalCopies = state.duplicateGroups.reduce((acc, g) => acc + (g.instances ? g.instances.length - 1 : 0), 0);
+                dupCopiesEl.textContent = `${totalCopies} redundant instances`;
+            }
+
             renderDuplicates(filterText);
         } catch (e) {
-            console.warn("Failed to fetch live duplicates", e);
+            console.warn("Failed to fetch live duplicates:", e);
             renderDuplicates(filterText);
         }
     }
 
-    // ── API: Load Quarantine Vault ─────────────────────────────
+    // ── API: Load Quarantine Vault ──────────────────────────────
     async function loadQuarantine() {
         try {
             const res = await fetch('/api/quarantine');
-            if (!res.ok) throw new Error("API error");
+            if (!res.ok) throw new Error("Quarantine API error");
             const data = await res.json();
             state.quarantined = data || [];
+            if (navQuarBadge) navQuarBadge.textContent = state.quarantined.length;
             renderQuarantine();
         } catch (e) {
-            console.warn("Failed to fetch quarantine list", e);
+            console.warn("Failed to fetch quarantine vault:", e);
             renderQuarantine();
         }
     }
 
-    // ── API: Load Full Audit Report ────────────────────────────
+    // ── API: Load Report Data ───────────────────────────────────
     async function loadReport() {
         try {
             const res = await fetch('/api/report');
-            if (!res.ok) throw new Error("API error");
+            if (!res.ok) throw new Error("Report API error");
             const data = await res.json();
             const viewer = document.getElementById('json-report-viewer');
             if (viewer) viewer.textContent = JSON.stringify(data, null, 2);
         } catch (e) {
-            renderReport();
+            console.warn("Failed to fetch JSON report", e);
         }
     }
 
-    // Render Categories
+    // Render Categories in Dashboard and Full Grid
     function renderCategories() {
         const listEl = document.getElementById('category-list');
-        if (listEl && state.categories.length > 0) {
-            listEl.innerHTML = state.categories.map(c => `
-                <div class="category-item">
-                    <span>${c.name}</span>
-                    <span class="badge badge-indigo">${c.count} applications</span>
-                </div>
-            `).join('');
+        if (listEl) {
+            if (state.categories.length === 0) {
+                listEl.innerHTML = `<div class="empty-state-sm">No applications classified yet. Run a scan to discover applications.</div>`;
+            } else {
+                listEl.innerHTML = state.categories.map(c => `
+                    <div class="category-item">
+                        <span style="font-weight: 600; color: #fff;">${c.name}</span>
+                        <span class="badge badge-indigo">${c.count} applications</span>
+                    </div>
+                `).join('');
+            }
         }
 
         const fullGrid = document.getElementById('full-categories-grid');
-        if (fullGrid && state.categories.length > 0) {
-            fullGrid.innerHTML = state.categories.map(c => `
-                <div class="category-item" style="padding: 16px; margin-bottom: 8px;">
-                    <div>
-                        <strong style="font-size: 15px; color: #fff;">${c.name}</strong>
-                        <p style="color: #94a3b8; font-size: 12px; margin-top: 2px;">Rule-based domain classification</p>
+        if (fullGrid) {
+            if (state.categories.length === 0) {
+                fullGrid.innerHTML = `<div class="empty-state-sm" style="grid-column: span 3;">No categories available yet.</div>`;
+            } else {
+                fullGrid.innerHTML = state.categories.map(c => `
+                    <div class="category-item" style="padding: 20px; flex-direction: column; align-items: flex-start; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                            <strong style="font-size: 16px; color: #fff;">${c.name}</strong>
+                            <span class="badge badge-indigo">${c.count} apps</span>
+                        </div>
+                        <p style="color: #94a3b8; font-size: 12px; margin: 0;">Automated rule classification domain</p>
                     </div>
-                    <span class="badge badge-indigo" style="font-size: 13px;">${c.count} apps</span>
-                </div>
-            `).join('');
+                `).join('');
+            }
         }
     }
 
-    // Render Duplicate Groups
+    // Render Duplicate Groups Review Cards
     function renderDuplicates(filterText = "") {
         const container = document.getElementById('duplicate-groups-list');
         if (!container) return;
 
         const filtered = state.duplicateGroups.filter(g => {
             if (!filterText) return true;
-            return (g.name && g.name.toLowerCase().includes(filterText)) ||
-                   (g.category && g.category.toLowerCase().includes(filterText));
+            const q = filterText.toLowerCase();
+            return (g.name && g.name.toLowerCase().includes(q)) ||
+                   (g.category && g.category.toLowerCase().includes(q)) ||
+                   (g.instances && g.instances.some(i => i.path && i.path.toLowerCase().includes(q)));
         });
 
         if (filtered.length === 0) {
             container.innerHTML = `
-                <div class="card" style="text-align: center; padding: 48px;">
-                    <h3 style="color: #10b981; font-size: 18px; margin-bottom: 8px;">✓ No Duplicate Applications Found</h3>
-                    <p style="color: #94a3b8;">Click "Start Full Pipeline Scan" to analyze target folders and discover content matches.</p>
+                <div class="card empty-card glass-card">
+                    <div class="empty-icon">✓</div>
+                    <h3>No Duplicate Applications Found</h3>
+                    <p>All tracked application packages are unique or no records match your filter criteria.</p>
                 </div>
             `;
+            updateSummary();
             return;
         }
 
@@ -193,8 +242,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="badge badge-emerald">🔒 100% SHA-256 Match</span>
                     </div>
                     <div class="dup-meta-info">
-                        <span>Total: ${formatBytes(grp.totalSize)}</span>
-                        <span style="color: #10b981; font-weight: 700;">Reclaimable: ${formatBytes(grp.reclaimableSize)}</span>
+                        <span>Group Size: <strong>${formatBytes(grp.totalSize)}</strong></span>
+                        <span style="color: #34d399; font-weight: 700;">Reclaimable: ${formatBytes(grp.reclaimableSize)}</span>
                     </div>
                 </div>
                 <div class="dup-instances-table">
@@ -202,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="instance-row">
                             <input type="checkbox" class="inst-checkbox" data-id="${inst.id}" data-path="${inst.path}" ${state.selectedAppIds.has(inst.id) ? 'checked' : ''}>
                             <span class="badge ${inst.isOriginal ? 'badge-emerald' : 'badge-amber'}">
-                                ${inst.isOriginal ? 'ORIGINAL (KEEP)' : 'DUPLICATE (REMOVE)'}
+                                ${inst.isOriginal ? 'PROTECTED (ORIGINAL)' : 'DUPLICATE (REMOVE)'}
                             </span>
                             <span class="instance-path" title="${inst.path}">${inst.path}</span>
                             <span class="instance-meta">${inst.size} • ${inst.date}</span>
@@ -212,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `).join('');
 
-        // Reattach Checkbox Listeners
+        // Reattach Checkbox Event Listeners
         document.querySelectorAll('.inst-checkbox').forEach(cb => {
             cb.addEventListener('change', (e) => {
                 const id = parseInt(e.target.getAttribute('data-id'), 10) || e.target.getAttribute('data-id');
@@ -240,60 +289,93 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-auto-select')?.addEventListener('click', () => {
         state.selectedAppIds.clear();
         state.duplicateGroups.forEach(g => {
-            g.instances.forEach((inst, idx) => {
-                if (!inst.isOriginal || idx > 0) state.selectedAppIds.add(inst.id);
-            });
+            if (g.instances) {
+                g.instances.forEach((inst, idx) => {
+                    if (!inst.isOriginal || idx > 0) state.selectedAppIds.add(inst.id);
+                });
+            }
         });
         renderDuplicates();
-        showToast("Auto-selected all redundant duplicate instances while preserving originals!");
+        showToast(`Auto-selected ${state.selectedAppIds.size} duplicate copies while preserving originals!`, "⚡");
     });
 
     document.getElementById('btn-keep-newest')?.addEventListener('click', () => {
         state.selectedAppIds.clear();
         state.duplicateGroups.forEach(g => {
-            const sorted = [...g.instances].sort((a,b) => (b.date || "").localeCompare(a.date || ""));
-            sorted.forEach((inst, idx) => {
-                if (idx > 0) state.selectedAppIds.add(inst.id);
-            });
+            if (g.instances) {
+                const sorted = [...g.instances].sort((a,b) => (b.date || "").localeCompare(a.date || ""));
+                sorted.forEach((inst, idx) => {
+                    if (idx > 0) state.selectedAppIds.add(inst.id);
+                });
+            }
         });
         renderDuplicates();
-        showToast("Selected older copies to keep the newest original!");
+        showToast("Selected older copies to preserve the newest installation.", "⏱️");
     });
 
     document.getElementById('btn-keep-oldest')?.addEventListener('click', () => {
         state.selectedAppIds.clear();
         state.duplicateGroups.forEach(g => {
-            const sorted = [...g.instances].sort((a,b) => (a.date || "").localeCompare(b.date || ""));
-            sorted.forEach((inst, idx) => {
-                if (idx > 0) state.selectedAppIds.add(inst.id);
-            });
+            if (g.instances) {
+                const sorted = [...g.instances].sort((a,b) => (a.date || "").localeCompare(b.date || ""));
+                sorted.forEach((inst, idx) => {
+                    if (idx > 0) state.selectedAppIds.add(inst.id);
+                });
+            }
         });
         renderDuplicates();
-        showToast("Selected newer copies to keep the oldest original!");
+        showToast("Selected newer copies to preserve the oldest original.", "🕰️");
     });
 
     document.getElementById('btn-deselect-all')?.addEventListener('click', () => {
         state.selectedAppIds.clear();
         renderDuplicates();
-        showToast("Deselected all copies.");
+        showToast("Cleared all selections.", "✕");
     });
 
+    // Real-time Search input
     document.getElementById('search-duplicates')?.addEventListener('input', (e) => {
         renderDuplicates(e.target.value.toLowerCase().trim());
     });
 
-    // ── Live Backend Scan Execution ────────────────────────────
+    // ── Live Multi-Stage Scan Pipeline ──────────────────────────
     const btnStartScan = document.getElementById('btn-start-scan');
     const scanStatusText = document.getElementById('scan-live-status');
     const progressFill = document.getElementById('progress-fill');
+    const progressPercent = document.getElementById('progress-percent');
+    const steps = [
+        document.getElementById('step-1'),
+        document.getElementById('step-2'),
+        document.getElementById('step-3'),
+        document.getElementById('step-4')
+    ];
+
+    function updateStepVisualizer(pct) {
+        if (progressFill) progressFill.style.width = `${pct}%`;
+        if (progressPercent) progressPercent.textContent = `${pct}%`;
+
+        steps.forEach((s, idx) => {
+            if (!s) return;
+            const threshold = (idx + 1) * 25;
+            if (pct >= threshold) {
+                s.classList.remove('active');
+                s.classList.add('completed');
+            } else if (pct >= threshold - 24) {
+                s.classList.add('active');
+                s.classList.remove('completed');
+            } else {
+                s.classList.remove('active', 'completed');
+            }
+        });
+    }
 
     async function triggerRealScan(targetPath = "") {
         if (state.isScanning) return;
         state.isScanning = true;
         if (btnStartScan) btnStartScan.disabled = true;
 
-        if (scanStatusText) scanStatusText.textContent = "Connecting to backend scanner pipeline...";
-        if (progressFill) progressFill.style.width = "15%";
+        updateStepVisualizer(15);
+        if (scanStatusText) scanStatusText.textContent = "Connecting to pipeline engine and indexing packages...";
 
         try {
             const scanResponse = await fetch('/api/scan', {
@@ -303,36 +385,37 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!scanResponse.ok && scanResponse.status !== 409) {
-                throw new Error("Failed to start scan");
+                throw new Error("Pipeline initialization failed");
             }
 
-            // Poll backend scan status
+            // Poll real-time progress from backend
             const pollInterval = setInterval(async () => {
                 try {
                     const statusRes = await fetch('/api/scan/status');
                     const statusData = await statusRes.json();
 
                     if (scanStatusText) scanStatusText.textContent = statusData.stage || "Processing...";
-                    if (progressFill) progressFill.style.width = `${statusData.progress || 25}%`;
+                    const pct = statusData.progress || 35;
+                    updateStepVisualizer(pct);
 
                     if (!statusData.is_scanning) {
                         clearInterval(pollInterval);
                         state.isScanning = false;
                         if (btnStartScan) btnStartScan.disabled = false;
-                        if (progressFill) progressFill.style.width = "100%";
+                        updateStepVisualizer(100);
 
-                        showToast("✓ Scan completed! Database updated with latest results.");
+                        showToast("Scan finished successfully! Duplicate database updated.", "✓");
                         await loadDashboard();
                         await loadDuplicates();
                     }
                 } catch (err) {
-                    console.error("Poll error", err);
+                    console.error("Poll status error", err);
                 }
-            }, 500);
+            }, 450);
 
         } catch (e) {
             console.error("Scan error", e);
-            if (scanStatusText) scanStatusText.textContent = "Scan failed: " + e.message;
+            if (scanStatusText) scanStatusText.textContent = "Scan error: " + e.message;
             state.isScanning = false;
             if (btnStartScan) btnStartScan.disabled = false;
         }
@@ -349,30 +432,61 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerRealScan();
     });
 
+    document.getElementById('btn-hero-custom')?.addEventListener('click', () => {
+        document.querySelector('[data-tab="scan"]')?.click();
+        const input = document.getElementById('scan-path-input');
+        if (input) input.focus();
+    });
+
     document.getElementById('btn-quick-scan-top')?.addEventListener('click', () => {
         document.querySelector('[data-tab="scan"]')?.click();
         triggerRealScan();
     });
 
-    // Preset Chips
-    document.querySelectorAll('.chip-btn').forEach(chip => {
+    document.getElementById('btn-refresh-data')?.addEventListener('click', async () => {
+        showToast("Synchronizing system state...", "🔄");
+        await loadDashboard();
+        await loadDuplicates();
+        await loadQuarantine();
+        showToast("System state synchronized.", "✓");
+    });
+
+    // Preset Target Chips
+    document.querySelectorAll('.preset-chip').forEach(chip => {
         chip.addEventListener('click', () => {
             const preset = chip.getAttribute('data-preset');
-            showToast(`Selected preset: ${preset}. Starting real scan...`);
+            const pathInput = document.getElementById('scan-path-input');
+            let targetPath = "";
+
+            if (preset === 'sample_apps') targetPath = "";
+            else if (preset === 'downloads') targetPath = "C:\\Users\\" + (window.location.pathname.split('/')[2] || 'User') + "\\Downloads";
+            else if (preset === 'program_files') targetPath = "C:\\Program Files";
+
+            if (pathInput) pathInput.value = targetPath;
+            showToast(`Target set to ${preset}. Starting scan...`, "📂");
             document.querySelector('[data-tab="scan"]')?.click();
-            triggerRealScan();
+            triggerRealScan(targetPath);
         });
     });
 
-    // ── Safe Quarantine Action via Backend ─────────────────────
+    // Browse Folder Simulation
+    document.getElementById('btn-browse-path')?.addEventListener('click', () => {
+        const pathInput = document.getElementById('scan-path-input');
+        const suggested = prompt("Enter full folder path to scan (or leave blank for sample_apps):", pathInput ? pathInput.value : "");
+        if (suggested !== null && pathInput) {
+            pathInput.value = suggested.trim();
+        }
+    });
+
+    // ── Safe Quarantine Action ──────────────────────────────────
     document.getElementById('btn-action-quarantine')?.addEventListener('click', async () => {
         if (state.selectedAppIds.size === 0) {
-            showToast("Please select at least 1 duplicate copy first.");
+            showToast("Please select at least 1 duplicate instance to quarantine.", "⚠️");
             return;
         }
 
         const ids = Array.from(state.selectedAppIds);
-        showToast("Sending quarantine request to backend...");
+        showToast(`Quarantining ${ids.length} selected items safely...`, "🛡️");
 
         try {
             const res = await fetch('/api/quarantine', {
@@ -382,79 +496,94 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
 
-            showToast(`🛡️ Successfully quarantined ${data.quarantined_count || ids.length} applications safely.`);
+            showToast(`Safely quarantined ${data.quarantined_count || ids.length} application copies. Space reclaimed!`, "✓");
             state.selectedAppIds.clear();
             await loadDuplicates();
             await loadDashboard();
             await loadQuarantine();
         } catch (e) {
-            showToast("Quarantine operation failed: " + e.message);
+            showToast("Quarantine failed: " + e.message, "✕");
         }
     });
 
-    // Render Quarantined List
+    // Render Quarantined List with 1-Click Restore
     function renderQuarantine() {
         const qList = document.getElementById('quarantine-list');
         if (!qList) return;
 
         if (state.quarantined.length === 0) {
             qList.innerHTML = `
-                <div class="card" style="text-align: center; padding: 32px;">
-                    <p style="color: #94a3b8;">Quarantine vault is currently empty.</p>
+                <div class="card empty-card glass-card">
+                    <div class="empty-icon">🛡️</div>
+                    <h3>Quarantine Vault is Clean</h3>
+                    <p>No application instances are currently in quarantine. Use the Duplicate Review tab to safely isolate redundant files.</p>
                 </div>
             `;
             return;
         }
 
         qList.innerHTML = state.quarantined.map(q => `
-            <div class="instance-row" style="padding: 14px; margin-bottom: 8px;">
+            <div class="instance-row" style="padding: 16px; margin-bottom: 10px;">
                 <span class="badge badge-emerald">QUARANTINED</span>
-                <span style="font-weight: 700; color: #fff;">${q.app_name || q.name}</span>
-                <span class="instance-path">${q.original_path || q.originalPath}</span>
+                <strong style="color: #fff; font-size: 14px;">${q.app_name || q.name || 'Application'}</strong>
+                <span class="instance-path" style="margin-left: 10px;" title="${q.original_path || q.originalPath}">${q.original_path || q.originalPath}</span>
                 <span class="instance-meta">${formatBytes(q.total_size)} • ${q.quarantined_at || q.date || 'Recent'}</span>
-                <button class="btn btn-secondary btn-restore" data-path="${q.original_path || q.originalPath}">↺ Restore</button>
+                <button class="btn btn-secondary btn-sm btn-restore-vault" data-path="${q.original_path || q.originalPath}">↺ Restore Application</button>
             </div>
         `).join('');
 
-        document.querySelectorAll('.btn-restore').forEach(btn => {
+        document.querySelectorAll('.btn-restore-vault').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const p = btn.getAttribute('data-path');
+                const path = btn.getAttribute('data-path');
                 try {
-                    await fetch('/api/restore', {
+                    showToast("Restoring application from vault...", "↺");
+                    const res = await fetch('/api/restore', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ original_path: p })
+                        body: JSON.stringify({ original_path: path })
                     });
-                    showToast(`Restored application from quarantine!`);
-                    await loadQuarantine();
-                    await loadDuplicates();
+                    const resData = await res.json();
+                    if (resData.status === "restored") {
+                        showToast(`Restored "${path}" successfully!`, "✓");
+                        await loadQuarantine();
+                        await loadDuplicates();
+                        await loadDashboard();
+                    } else {
+                        showToast("Restore failed: Target path already exists.", "✕");
+                    }
                 } catch (err) {
-                    showToast("Restore failed: " + err.message);
+                    showToast("Restore error: " + err.message, "✕");
                 }
             });
         });
     }
 
-    // Render JSON Report Viewer
-    function renderReport() {
-        const viewer = document.getElementById('json-report-viewer');
-        if (!viewer) return;
-        const reportData = {
-            report_version: "1.0.0",
-            generated_at: new Date().toISOString(),
-            scan_engine: "Deterministic SHA-256 Multi-Stage",
-            system_status: {
-                total_applications: state.totalApps,
-                duplicate_groups: state.duplicateGroups.length,
-                reclaimable_bytes: state.reclaimableSize,
-                safe_mode_enabled: true
-            },
-            groups: state.duplicateGroups
-        };
-        viewer.textContent = JSON.stringify(reportData, null, 2);
-    }
+    // ── Export JSON Report ──────────────────────────────────────
+    document.getElementById('btn-download-report')?.addEventListener('click', async () => {
+        try {
+            const res = await fetch('/api/report');
+            const data = await res.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `iadcs_compliance_report_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Report downloaded successfully!", "📥");
+        } catch (e) {
+            showToast("Failed to download report", "✕");
+        }
+    });
 
-    // Initial Data Fetch
+    // View All Categories shortcut
+    document.getElementById('btn-view-all-cats')?.addEventListener('click', () => {
+        document.querySelector('[data-tab="categories"]')?.click();
+    });
+
+    // Initialize System State
     loadDashboard();
     loadDuplicates();
     loadQuarantine();
