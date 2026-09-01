@@ -1,56 +1,15 @@
-// IADCS Web UI Controller - Stitch Obsidian Logic Edition
+﻿// IADCS Web UI Controller - Connected to Live Python Backend API
 document.addEventListener('DOMContentLoaded', () => {
-    // Mock State
+    // Application State
     const state = {
-        totalApps: 28,
-        duplicateGroups: [
-            {
-                id: 1,
-                name: "Node.js JavaScript Runtime (v20.10.0)",
-                category: "Development",
-                totalSize: 452000000,
-                reclaimableSize: 226000000,
-                instances: [
-                    { id: 101, path: "C:\\Program Files\\nodejs", isOriginal: true, size: "226 MB", date: "2026-08-10" },
-                    { id: 102, path: "D:\\Backups\\Programs\\nodejs_old", isOriginal: false, size: "226 MB", date: "2026-06-15" }
-                ]
-            },
-            {
-                id: 2,
-                name: "VLC Media Player",
-                category: "Media",
-                totalSize: 180000000,
-                reclaimableSize: 120000000,
-                instances: [
-                    { id: 201, path: "C:\\Program Files\\VideoLAN\\VLC", isOriginal: true, size: "60 MB", date: "2026-08-01" },
-                    { id: 202, path: "D:\\Downloads\\vlc_portable", isOriginal: false, size: "60 MB", date: "2026-05-20" },
-                    { id: 203, path: "D:\\SoftwareArchive\\VLC_Player", isOriginal: false, size: "60 MB", date: "2026-04-12" }
-                ]
-            },
-            {
-                id: 3,
-                name: "PostgreSQL 16 Enterprise Database",
-                category: "Database",
-                totalSize: 1240000000,
-                reclaimableSize: 620000000,
-                instances: [
-                    { id: 301, path: "C:\\Program Files\\PostgreSQL\\16", isOriginal: true, size: "620 MB", date: "2026-07-22" },
-                    { id: 302, path: "E:\\DevTools\\PostgreSQL_16_Copy", isOriginal: false, size: "620 MB", date: "2026-05-18" }
-                ]
-            }
-        ],
-        categories: [
-            { name: "Development", count: 11 },
-            { name: "Database", count: 5 },
-            { name: "Media", count: 4 },
-            { name: "Utilities", count: 4 },
-            { name: "Communication", count: 2 },
-            { name: "System Software", count: 2 }
-        ],
-        quarantined: [
-            { name: "DevApp_v1", originalPath: "D:\\Backups\\DevApp", date: "2026-08-29 14:02", size: "14.2 MB" }
-        ],
-        selectedAppIds: new Set([102, 202, 203, 302])
+        totalApps: 0,
+        totalSize: 0,
+        reclaimableSize: 0,
+        duplicateGroups: [],
+        categories: [],
+        quarantined: [],
+        selectedAppIds: new Set(),
+        isScanning: false
     };
 
     // Tab Navigation
@@ -82,22 +41,116 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageTitle.textContent = titles[targetTab].title;
                 pageSubtitle.textContent = titles[targetTab].subtitle;
             }
+
+            // Refresh tab-specific data
+            if (targetTab === 'quarantine') loadQuarantine();
+            if (targetTab === 'reports') loadReport();
+            if (targetTab === 'duplicates') loadDuplicates();
+            if (targetTab === 'dashboard') loadDashboard();
         });
     });
 
-    // Render Dashboard Categories
+    // Helper: Format Bytes
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return "0.0 B";
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Helper: Toast Message
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    // ── API: Load Dashboard Stats ──────────────────────────────
+    async function loadDashboard() {
+        try {
+            const res = await fetch('/api/dashboard');
+            if (!res.ok) throw new Error("API error");
+            const data = await res.json();
+
+            state.totalApps = data.totalApps || 0;
+            state.totalSize = data.totalSize || 0;
+            state.reclaimableSize = data.reclaimableSize || 0;
+            state.categories = data.categories || [];
+
+            // Update stats cards in UI if present
+            const totalAppsEl = document.getElementById('stat-total-apps');
+            if (totalAppsEl) totalAppsEl.textContent = state.totalApps;
+
+            const reclaimEl = document.getElementById('stat-reclaimable');
+            if (reclaimEl) reclaimEl.textContent = formatBytes(state.reclaimableSize);
+
+            const dupCountEl = document.getElementById('stat-dup-groups');
+            if (dupCountEl) dupCountEl.textContent = data.duplicateGroupsCount || 0;
+
+            renderCategories();
+        } catch (e) {
+            console.warn("Backend API not reachable or empty, loading fallback data", e);
+        }
+    }
+
+    // ── API: Load Duplicate Groups ─────────────────────────────
+    async function loadDuplicates(filterText = "") {
+        try {
+            const res = await fetch('/api/duplicates');
+            if (!res.ok) throw new Error("API error");
+            const data = await res.json();
+            state.duplicateGroups = data || [];
+            renderDuplicates(filterText);
+        } catch (e) {
+            console.warn("Failed to fetch live duplicates", e);
+            renderDuplicates(filterText);
+        }
+    }
+
+    // ── API: Load Quarantine Vault ─────────────────────────────
+    async function loadQuarantine() {
+        try {
+            const res = await fetch('/api/quarantine');
+            if (!res.ok) throw new Error("API error");
+            const data = await res.json();
+            state.quarantined = data || [];
+            renderQuarantine();
+        } catch (e) {
+            console.warn("Failed to fetch quarantine list", e);
+            renderQuarantine();
+        }
+    }
+
+    // ── API: Load Full Audit Report ────────────────────────────
+    async function loadReport() {
+        try {
+            const res = await fetch('/api/report');
+            if (!res.ok) throw new Error("API error");
+            const data = await res.json();
+            const viewer = document.getElementById('json-report-viewer');
+            if (viewer) viewer.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            renderReport();
+        }
+    }
+
+    // Render Categories
     function renderCategories() {
         const listEl = document.getElementById('category-list');
-        if (!listEl) return;
-        listEl.innerHTML = state.categories.map(c => `
-            <div class="category-item">
-                <span>${c.name}</span>
-                <span class="badge badge-indigo">${c.count} applications</span>
-            </div>
-        `).join('');
+        if (listEl && state.categories.length > 0) {
+            listEl.innerHTML = state.categories.map(c => `
+                <div class="category-item">
+                    <span>${c.name}</span>
+                    <span class="badge badge-indigo">${c.count} applications</span>
+                </div>
+            `).join('');
+        }
 
         const fullGrid = document.getElementById('full-categories-grid');
-        if (fullGrid) {
+        if (fullGrid && state.categories.length > 0) {
             fullGrid.innerHTML = state.categories.map(c => `
                 <div class="category-item" style="padding: 16px; margin-bottom: 8px;">
                     <div>
@@ -117,14 +170,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const filtered = state.duplicateGroups.filter(g => {
             if (!filterText) return true;
-            return g.name.toLowerCase().includes(filterText) || g.category.toLowerCase().includes(filterText);
+            return (g.name && g.name.toLowerCase().includes(filterText)) ||
+                   (g.category && g.category.toLowerCase().includes(filterText));
         });
 
         if (filtered.length === 0) {
             container.innerHTML = `
                 <div class="card" style="text-align: center; padding: 48px;">
-                    <h3 style="color: #10b981; font-size: 18px; margin-bottom: 8px;">🎉 No Duplicate Applications Found</h3>
-                    <p style="color: #94a3b8;">All tracked applications are unique or no items match your current filter.</p>
+                    <h3 style="color: #10b981; font-size: 18px; margin-bottom: 8px;">✓ No Duplicate Applications Found</h3>
+                    <p style="color: #94a3b8;">Click "Start Full Pipeline Scan" to analyze target folders and discover content matches.</p>
                 </div>
             `;
             return;
@@ -135,22 +189,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="dup-header">
                     <div class="dup-title-row">
                         <span class="dup-app-title">📦 ${grp.name}</span>
-                        <span class="badge badge-indigo">${grp.category}</span>
-                        <span class="badge badge-emerald">✓ 100% SHA-256 Match</span>
+                        <span class="badge badge-indigo">${grp.category || 'General'}</span>
+                        <span class="badge badge-emerald">🔒 100% SHA-256 Match</span>
                     </div>
                     <div class="dup-meta-info">
-                        <span>Total: ${(grp.totalSize / (1024*1024)).toFixed(0)} MB</span>
-                        <span style="color: #10b981; font-weight: 700;">Reclaimable: ${(grp.reclaimableSize / (1024*1024)).toFixed(0)} MB</span>
+                        <span>Total: ${formatBytes(grp.totalSize)}</span>
+                        <span style="color: #10b981; font-weight: 700;">Reclaimable: ${formatBytes(grp.reclaimableSize)}</span>
                     </div>
                 </div>
                 <div class="dup-instances-table">
                     ${grp.instances.map(inst => `
                         <div class="instance-row">
-                            <input type="checkbox" class="inst-checkbox" data-id="${inst.id}" ${state.selectedAppIds.has(inst.id) ? 'checked' : ''}>
+                            <input type="checkbox" class="inst-checkbox" data-id="${inst.id}" data-path="${inst.path}" ${state.selectedAppIds.has(inst.id) ? 'checked' : ''}>
                             <span class="badge ${inst.isOriginal ? 'badge-emerald' : 'badge-amber'}">
                                 ${inst.isOriginal ? 'ORIGINAL (KEEP)' : 'DUPLICATE (REMOVE)'}
                             </span>
-                            <span class="instance-path">${inst.path}</span>
+                            <span class="instance-path" title="${inst.path}">${inst.path}</span>
                             <span class="instance-meta">${inst.size} • ${inst.date}</span>
                         </div>
                     `).join('')}
@@ -161,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reattach Checkbox Listeners
         document.querySelectorAll('.inst-checkbox').forEach(cb => {
             cb.addEventListener('change', (e) => {
-                const id = parseInt(e.target.getAttribute('data-id'), 10);
+                const id = parseInt(e.target.getAttribute('data-id'), 10) || e.target.getAttribute('data-id');
                 if (e.target.checked) {
                     state.selectedAppIds.add(id);
                 } else {
@@ -178,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const count = state.selectedAppIds.size;
         const summaryEl = document.getElementById('selection-summary');
         if (summaryEl) {
-            summaryEl.innerHTML = `Selected: <strong>${count} redundant copies (~${(count * 210).toFixed(0)} MB)</strong>`;
+            summaryEl.innerHTML = `Selected: <strong>${count} redundant copies</strong>`;
         }
     }
 
@@ -187,17 +241,17 @@ document.addEventListener('DOMContentLoaded', () => {
         state.selectedAppIds.clear();
         state.duplicateGroups.forEach(g => {
             g.instances.forEach((inst, idx) => {
-                if (idx > 0) state.selectedAppIds.add(inst.id);
+                if (!inst.isOriginal || idx > 0) state.selectedAppIds.add(inst.id);
             });
         });
         renderDuplicates();
-        showToast("Auto-selected all duplicate instances while preserving originals!");
+        showToast("Auto-selected all redundant duplicate instances while preserving originals!");
     });
 
     document.getElementById('btn-keep-newest')?.addEventListener('click', () => {
         state.selectedAppIds.clear();
         state.duplicateGroups.forEach(g => {
-            const sorted = [...g.instances].sort((a,b) => b.date.localeCompare(a.date));
+            const sorted = [...g.instances].sort((a,b) => (b.date || "").localeCompare(a.date || ""));
             sorted.forEach((inst, idx) => {
                 if (idx > 0) state.selectedAppIds.add(inst.id);
             });
@@ -209,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-keep-oldest')?.addEventListener('click', () => {
         state.selectedAppIds.clear();
         state.duplicateGroups.forEach(g => {
-            const sorted = [...g.instances].sort((a,b) => a.date.localeCompare(b.date));
+            const sorted = [...g.instances].sort((a,b) => (a.date || "").localeCompare(b.date || ""));
             sorted.forEach((inst, idx) => {
                 if (idx > 0) state.selectedAppIds.add(inst.id);
             });
@@ -224,95 +278,161 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast("Deselected all copies.");
     });
 
-    // Search input
     document.getElementById('search-duplicates')?.addEventListener('input', (e) => {
         renderDuplicates(e.target.value.toLowerCase().trim());
     });
 
-    // Scan Simulation
+    // ── Live Backend Scan Execution ────────────────────────────
     const btnStartScan = document.getElementById('btn-start-scan');
     const scanStatusText = document.getElementById('scan-live-status');
     const progressFill = document.getElementById('progress-fill');
 
-    function simulateScan() {
-        if (!btnStartScan) return;
-        btnStartScan.disabled = true;
-        let progress = 0;
-        const phases = [
-            { p: 25, label: "Phase 1: Discovering application packages..." },
-            { p: 55, label: "Phase 2: Calculating multi-stage SHA-256 fingerprints..." },
-            { p: 85, label: "Phase 3: Classifying application categories..." },
-            { p: 100, label: "Phase 4: Complete! Verified duplicate groups." }
-        ];
+    async function triggerRealScan(targetPath = "") {
+        if (state.isScanning) return;
+        state.isScanning = true;
+        if (btnStartScan) btnStartScan.disabled = true;
 
-        let phaseIndex = 0;
-        const interval = setInterval(() => {
-            if (phaseIndex < phases.length) {
-                progress = phases[phaseIndex].p;
-                scanStatusText.textContent = phases[phaseIndex].label;
-                progressFill.style.width = `${progress}%`;
-                phaseIndex++;
-            } else {
-                clearInterval(interval);
-                btnStartScan.disabled = false;
-                showToast("Multi-stage scan completed successfully!");
+        if (scanStatusText) scanStatusText.textContent = "Connecting to backend scanner pipeline...";
+        if (progressFill) progressFill.style.width = "15%";
+
+        try {
+            const scanResponse = await fetch('/api/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: targetPath })
+            });
+
+            if (!scanResponse.ok && scanResponse.status !== 409) {
+                throw new Error("Failed to start scan");
             }
-        }, 600);
+
+            // Poll backend scan status
+            const pollInterval = setInterval(async () => {
+                try {
+                    const statusRes = await fetch('/api/scan/status');
+                    const statusData = await statusRes.json();
+
+                    if (scanStatusText) scanStatusText.textContent = statusData.stage || "Processing...";
+                    if (progressFill) progressFill.style.width = `${statusData.progress || 25}%`;
+
+                    if (!statusData.is_scanning) {
+                        clearInterval(pollInterval);
+                        state.isScanning = false;
+                        if (btnStartScan) btnStartScan.disabled = false;
+                        if (progressFill) progressFill.style.width = "100%";
+
+                        showToast("✓ Scan completed! Database updated with latest results.");
+                        await loadDashboard();
+                        await loadDuplicates();
+                    }
+                } catch (err) {
+                    console.error("Poll error", err);
+                }
+            }, 500);
+
+        } catch (e) {
+            console.error("Scan error", e);
+            if (scanStatusText) scanStatusText.textContent = "Scan failed: " + e.message;
+            state.isScanning = false;
+            if (btnStartScan) btnStartScan.disabled = false;
+        }
     }
 
-    btnStartScan?.addEventListener('click', simulateScan);
+    btnStartScan?.addEventListener('click', () => {
+        const pathInput = document.getElementById('scan-path-input');
+        const customPath = pathInput ? pathInput.value.trim() : "";
+        triggerRealScan(customPath);
+    });
+
     document.getElementById('btn-hero-scan')?.addEventListener('click', () => {
         document.querySelector('[data-tab="scan"]')?.click();
-        simulateScan();
+        triggerRealScan();
     });
+
     document.getElementById('btn-quick-scan-top')?.addEventListener('click', () => {
         document.querySelector('[data-tab="scan"]')?.click();
-        simulateScan();
+        triggerRealScan();
     });
 
     // Preset Chips
     document.querySelectorAll('.chip-btn').forEach(chip => {
         chip.addEventListener('click', () => {
             const preset = chip.getAttribute('data-preset');
-            showToast(`Selected preset: ${preset}. Starting scan...`);
+            showToast(`Selected preset: ${preset}. Starting real scan...`);
             document.querySelector('[data-tab="scan"]')?.click();
-            simulateScan();
+            triggerRealScan();
         });
     });
 
-    // Safe Quarantine Action
-    document.getElementById('btn-action-quarantine')?.addEventListener('click', () => {
+    // ── Safe Quarantine Action via Backend ─────────────────────
+    document.getElementById('btn-action-quarantine')?.addEventListener('click', async () => {
         if (state.selectedAppIds.size === 0) {
             showToast("Please select at least 1 duplicate copy first.");
             return;
         }
-        showToast(`🛡️ Successfully quarantined ${state.selectedAppIds.size} applications safely.`);
-        state.selectedAppIds.clear();
-        renderDuplicates();
-    });
 
-    // Toast Function
-    function showToast(msg) {
-        const toast = document.getElementById('toast');
-        if (!toast) return;
-        toast.textContent = msg;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3500);
-    }
+        const ids = Array.from(state.selectedAppIds);
+        showToast("Sending quarantine request to backend...");
+
+        try {
+            const res = await fetch('/api/quarantine', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ app_ids: ids })
+            });
+            const data = await res.json();
+
+            showToast(`🛡️ Successfully quarantined ${data.quarantined_count || ids.length} applications safely.`);
+            state.selectedAppIds.clear();
+            await loadDuplicates();
+            await loadDashboard();
+            await loadQuarantine();
+        } catch (e) {
+            showToast("Quarantine operation failed: " + e.message);
+        }
+    });
 
     // Render Quarantined List
     function renderQuarantine() {
         const qList = document.getElementById('quarantine-list');
         if (!qList) return;
+
+        if (state.quarantined.length === 0) {
+            qList.innerHTML = `
+                <div class="card" style="text-align: center; padding: 32px;">
+                    <p style="color: #94a3b8;">Quarantine vault is currently empty.</p>
+                </div>
+            `;
+            return;
+        }
+
         qList.innerHTML = state.quarantined.map(q => `
             <div class="instance-row" style="padding: 14px; margin-bottom: 8px;">
                 <span class="badge badge-emerald">QUARANTINED</span>
-                <span style="font-weight: 700; color: #fff;">${q.name}</span>
-                <span class="instance-path">${q.originalPath}</span>
-                <span class="instance-meta">${q.size} • ${q.date}</span>
-                <button class="btn btn-secondary" onclick="alert('Restored ${q.name} safely!')">↩ Restore</button>
+                <span style="font-weight: 700; color: #fff;">${q.app_name || q.name}</span>
+                <span class="instance-path">${q.original_path || q.originalPath}</span>
+                <span class="instance-meta">${formatBytes(q.total_size)} • ${q.quarantined_at || q.date || 'Recent'}</span>
+                <button class="btn btn-secondary btn-restore" data-path="${q.original_path || q.originalPath}">↺ Restore</button>
             </div>
         `).join('');
+
+        document.querySelectorAll('.btn-restore').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const p = btn.getAttribute('data-path');
+                try {
+                    await fetch('/api/restore', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ original_path: p })
+                    });
+                    showToast(`Restored application from quarantine!`);
+                    await loadQuarantine();
+                    await loadDuplicates();
+                } catch (err) {
+                    showToast("Restore failed: " + err.message);
+                }
+            });
+        });
     }
 
     // Render JSON Report Viewer
@@ -326,18 +446,16 @@ document.addEventListener('DOMContentLoaded', () => {
             system_status: {
                 total_applications: state.totalApps,
                 duplicate_groups: state.duplicateGroups.length,
-                reclaimable_bytes: 4820000000,
-                safe_mode_enabled: true,
-                protected_directories: ["C:\\Windows", "C:\\Windows\\System32"]
+                reclaimable_bytes: state.reclaimableSize,
+                safe_mode_enabled: true
             },
             groups: state.duplicateGroups
         };
         viewer.textContent = JSON.stringify(reportData, null, 2);
     }
 
-    // Initial Renders
-    renderCategories();
-    renderDuplicates();
-    renderQuarantine();
-    renderReport();
+    // Initial Data Fetch
+    loadDashboard();
+    loadDuplicates();
+    loadQuarantine();
 });

@@ -1,4 +1,4 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   # CLI Runner / Background Scanner
@@ -25,13 +25,15 @@ services:
       - QT_QPA_PLATFORM=offscreen
     command: ["python", "-m", "pytest", "tests/", "-v"]
 
-  # Interactive Web Dashboard Container
+  # Interactive Web Dashboard + REST API Backend Container
   iadcs-web:
-    image: python:3.12-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: iadcs_web_ui
-    working_dir: /app/web
+    working_dir: /app
     volumes:
-      - ./web:/app/web
+      - ./:/app
     ports:
       - "8080:8080"
-    command: ["python", "-m", "http.server", "8080"]
+    entrypoint: ["python", "-m", "app.web_server", "8080"]
