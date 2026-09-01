@@ -72,7 +72,7 @@ class AppWindow(tk.Tk):
 
         self._setup_styles()
         self._build_layout()
-        self._refresh_dashboard()
+        self._refresh_all()
 
         # Start thread-safe event queue listener
         self._poll_events()
@@ -162,6 +162,27 @@ class AppWindow(tk.Tk):
             btn.pack(fill="x", pady=2)
             self._nav_buttons[key] = btn
 
+        # Quick Refresh Button in Sidebar
+        btn_refresh = tk.Button(
+            self._nav_frame,
+            text="  🔄  Refresh All Data",
+            font=FONT_BOLD,
+            fg=INFO,
+            bg=BG_CARD,
+            activeforeground="#ffffff",
+            activebackground=BG_CARD_HOVER,
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=BORDER_LIGHT,
+            anchor="w",
+            padx=12,
+            pady=8,
+            cursor="hand2",
+            command=self._handle_manual_refresh,
+        )
+        btn_refresh.pack(fill="x", pady=(14, 0))
+
         # Sidebar Footer
         sb_foot = tk.Frame(self._sidebar, bg=BG_SURFACE)
         sb_foot.pack(side="bottom", fill="x")
@@ -220,6 +241,7 @@ class AppWindow(tk.Tk):
             self._content,
             repo=self._repo,
             on_toast=self._show_toast,
+            on_refresh=self._refresh_all,
         )
         self._panel_history = HistoryPanel(
             self._content,
@@ -268,6 +290,21 @@ class AppWindow(tk.Tk):
         elif key in ("history", "quarantine"):
             self._panel_history.refresh_quarantine()
             self._panel_history.refresh_history()
+        elif key == "results":
+            if not self._panel_results._groups:
+                self._panel_results.refresh_from_db()
+
+    # ── Refresh All Handler ──────────────────────────────────────────────────
+
+    def _handle_manual_refresh(self):
+        self._refresh_all()
+        self._panel_results.refresh_from_db()
+        self._show_toast("Refreshed all dashboard metrics and duplicate groups!", "success")
+
+    def _refresh_all(self):
+        self._refresh_dashboard()
+        self._panel_history.refresh_quarantine()
+        self._panel_history.refresh_history()
 
     # ── Scan Event Handling ──────────────────────────────────────────────────
 
@@ -352,7 +389,7 @@ class AppWindow(tk.Tk):
                 "success",
             )
             self._panel_results.load_groups(groups)
-            self._refresh_dashboard()
+            self._refresh_all()
             self._switch_panel("results")
         else:
             self._show_toast("Scan completed with no records or was cancelled.", "info")
@@ -396,5 +433,3 @@ class AppWindow(tk.Tk):
         except Exception:
             pass
         self.destroy()
-
-
