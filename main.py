@@ -1,6 +1,6 @@
 ﻿"""
 Main launcher for IADCS (Intelligent Application Deduplication & Categorization System).
-Supports both CLI mode and Desktop UI mode.
+Launches the native Python Desktop Application by default or executes CLI commands.
 """
 from __future__ import annotations
 
@@ -30,14 +30,14 @@ def _setup_logging():
         log_path, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
     )
     fh.setFormatter(logging.Formatter(
-        "%(asctime)s  %(levelname)-8s  %(name)s  —  %(message)s",
+        "%(asctime)s  %(levelname)-8s  %(name)s  -  %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     ))
     root_logger.addHandler(fh)
 
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
-    ch.setFormatter(logging.Formatter("%(levelname)s  %(name)s — %(message)s"))
+    ch.setFormatter(logging.Formatter("%(levelname)s  %(name)s - %(message)s"))
     root_logger.addHandler(ch)
 
 
@@ -51,7 +51,7 @@ def main():
     _ensure_dirs()
 
     logger = logging.getLogger(__name__)
-    logger.info("=== IADCS Starting ===")
+    logger.info("=== IADCS Native Desktop App Starting ===")
 
     # If subcommands are passed or --help/--version, run CLI
     cli_commands = {"scan", "duplicates", "categories", "rules", "report", "remove", "--help", "-h", "-v", "--version"}
@@ -60,18 +60,15 @@ def main():
         run_cli()
         return
 
+    # Default action: Launch the Native Python Desktop GUI Application
     try:
         from app.ui.app import AppWindow
         app = AppWindow()
         app.mainloop()
     except Exception as e:
-        logger.warning("Tk GUI launch failed (%s), attempting PyQt GUI fallback", e)
-        try:
-            from app.ui.app_window import launch_gui
-            launch_gui()
-        except Exception:
-            logger.exception("Fatal error launching GUI")
-            raise
+        logger.warning("Tk Desktop launch failed (%s), attempting PyQt GUI fallback", e)
+        from app.ui.app_window import launch_gui
+        launch_gui()
 
 
 if __name__ == "__main__":
