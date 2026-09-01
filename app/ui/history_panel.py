@@ -10,9 +10,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable, List, Optional
 
-from app.removal.quarantine import QuarantineManager
 from app.data.models import ScanRecord
 from app.data.repository import Repository
+from app.removal.quarantine import QuarantineManager
 from app.ui.theme import (
     ACCENT, ACCENT_HOVER, ACCENT_LIGHT, ACCENT_SURFACE,
     BG_CARD, BG_CARD_HOVER, BG_DARK, BG_INPUT, BG_PANEL, BG_ROW_ALT, BG_SURFACE,
@@ -106,7 +106,7 @@ class HistoryPanel(tk.Frame):
         self._q_tree.heading("original_path", text="Original File Path", anchor="w")
         self._q_tree.heading("date", text="Isolation Date", anchor="w")
 
-        self._q_tree.column("status", width=120, anchor="center")
+        self._q_tree.column("status", width=130, anchor="center")
         self._q_tree.column("size", width=100, anchor="e")
         self._q_tree.column("original_path", width=360)
         self._q_tree.column("date", width=160)
@@ -155,22 +155,24 @@ class HistoryPanel(tk.Frame):
 
         self._h_tree = ttk.Treeview(
             h_tree_frame,
-            columns=("scan_id", "apps", "groups", "reclaimed", "completed"),
+            columns=("scan_id", "type", "apps", "groups", "status", "completed"),
             show="headings",
             selectmode="browse",
             height=5,
         )
         self._h_tree.heading("scan_id", text="Scan ID", anchor="w")
-        self._h_tree.heading("apps", text="Total Apps", anchor="e")
+        self._h_tree.heading("type", text="Type", anchor="w")
+        self._h_tree.heading("apps", text="Apps Found", anchor="e")
         self._h_tree.heading("groups", text="Duplicate Groups", anchor="e")
-        self._h_tree.heading("reclaimed", text="Reclaimable", anchor="e")
-        self._h_tree.heading("completed", text="Completed At", anchor="w")
+        self._h_tree.heading("status", text="Status", anchor="center")
+        self._h_tree.heading("completed", text="Timestamp", anchor="w")
 
-        self._h_tree.column("scan_id", width=140)
-        self._h_tree.column("apps", width=90, anchor="e")
+        self._h_tree.column("scan_id", width=90)
+        self._h_tree.column("type", width=110)
+        self._h_tree.column("apps", width=100, anchor="e")
         self._h_tree.column("groups", width=130, anchor="e")
-        self._h_tree.column("reclaimed", width=110, anchor="e")
-        self._h_tree.column("completed", width=180)
+        self._h_tree.column("status", width=100, anchor="center")
+        self._h_tree.column("completed", width=200)
 
         h_vsb = ttk.Scrollbar(h_tree_frame, orient="vertical", command=self._h_tree.yview)
         self._h_tree.configure(yscrollcommand=h_vsb.set)
@@ -183,32 +185,45 @@ class HistoryPanel(tk.Frame):
         self._q_tree.delete(*self._q_tree.get_children())
         records = self._qm.list_quarantined()
 
-        for r in records:
+        for idx, r in enumerate(records):
             orig_path = r.get("original_path", "")
             size_str = bytes_human(r.get("total_size", 0))
             date_str = r.get("quarantined_at", "Recent")
+            row_id = f"q_{idx}_{orig_path}"
             self._q_tree.insert(
                 "",
                 "end",
-                iid=orig_path,
+                iid=row_id,
                 values=("🛡️ QUARANTINED", size_str, orig_path, date_str),
             )
 
     def refresh_history(self):
         self._h_tree.delete(*self._h_tree.get_children())
-        records = self._repo.get_all_scans(limit=30)
+        try:
+            records = self._repo.get_all_scans() or []
+        except Exception:
+            records = []
 
-        for s in records:
+        # Show newest 30 scans
+        for s in records[:30]:
+            scan_id = str(getattr(s, "id", getattr(s, "scan_id", "N/A")))
+            scan_type = getattr(s, "scan_type", "Directory")
+            apps_cnt = str(getattr(s, "apps_found", getattr(s, "total_apps", 0)))
+            dups_cnt = str(getattr(s, "duplicates_found", getattr(s, "duplicate_groups", 0)))
+            status = str(getattr(s, "status", "done")).upper()
+            time_str = getattr(s, "finished_at", getattr(s, "started_at", getattr(s, "completed_at", "Recent")))
+
             self._h_tree.insert(
                 "",
                 "end",
-                iid=s.scan_id,
+                iid=f"scan_row_{scan_id}",
                 values=(
-                    s.scan_id,
-                    str(s.total_apps),
-                    str(s.duplicate_groups),
-                    bytes_human(s.reclaimable_size),
-                    s.completed_at or "In Progress",
+                    f"#{scan_id}",
+                    scan_type,
+                    apps_cnt,
+                    dups_cnt,
+                    status,
+                    time_str,
                 ),
             )
 
@@ -218,27 +233,38 @@ class HistoryPanel(tk.Frame):
             self._on_toast("Please select a quarantined item to restore.", "warning")
             return
 
-        orig_path = selected[0]
+        row_id = selected[0]
+        # Look up item from values
+        item_values = self._q_tree.item(row_id, "values")
+        if not item_values or len(item_values) < 3:
+            return
+        orig_path = item_values[2]
+
         success = self._qm.restore_application(orig_path)
         if success:
             self._on_toast(f"Restored application to '{orig_path}' successfully!", "success")
             self.refresh_quarantine()
         else:
-            self._on_toast("Restore failed: destination path already exists.", "error")
+            self._on_toast("Restore failed: destination path already exists or file missing.", "error")
 
     def _export_history_json(self):
-        records = self._repo.get_all_scans(limit=100)
+        try:
+            records = self._repo.get_all_scans() or []
+        except Exception:
+            records = []
+
         data = [
             {
-                "scan_id": s.scan_id,
-                "started_at": s.started_at,
-                "completed_at": s.completed_at,
-                "total_apps": s.total_apps,
-                "duplicate_groups": s.duplicate_groups,
-                "reclaimable_size": s.reclaimable_size,
-                "paths_scanned": s.paths_scanned,
+                "id": getattr(s, "id", getattr(s, "scan_id", None)),
+                "scan_type": getattr(s, "scan_type", "directory"),
+                "root_path": getattr(s, "root_path", ""),
+                "started_at": getattr(s, "started_at", None),
+                "finished_at": getattr(s, "finished_at", getattr(s, "completed_at", None)),
+                "status": getattr(s, "status", "done"),
+                "apps_found": getattr(s, "apps_found", getattr(s, "total_apps", 0)),
+                "duplicates_found": getattr(s, "duplicates_found", getattr(s, "duplicate_groups", 0)),
             }
-            for s in records
+            for s in records[:100]
         ]
 
         save_path = filedialog.asksaveasfilename(
