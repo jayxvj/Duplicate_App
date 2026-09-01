@@ -1,13 +1,14 @@
-"""
-Root application window — assembles all panels, configures ttk styles,
-owns the managers, and routes events between UI and business logic.
+﻿"""
+Root Application Window for IADCS Sentinel Desktop:
+Assembles all panels, configures dark styles, owns managers,
+and routes events seamlessly across views.
 """
 from __future__ import annotations
 
 import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from app.config import cfg
 from app.data.database import Database
@@ -21,33 +22,40 @@ from app.ui.results_panel import ResultsPanel
 from app.ui.scan_panel import ScanPanel
 from app.ui.settings_panel import SettingsPanel
 from app.ui.theme import (
-    ACCENT, ACCENT2, BG_CARD, BG_DARK, BG_PANEL, BG_ROW_ALT, BORDER,
+    ACCENT, ACCENT_HOVER, ACCENT_LIGHT, ACCENT_SURFACE,
+    BG_CARD, BG_CARD_HOVER, BG_DARK, BG_INPUT, BG_PANEL, BG_ROW_ALT, BG_SURFACE,
+    BORDER, BORDER_ACTIVE, BORDER_LIGHT,
+    DANGER, DANGER_LIGHT,
     FG_MUTED, FG_PRIMARY, FG_SECONDARY,
-    FONT_BOLD, FONT_NORMAL, FONT_SMALL, FONT_TITLE,
-    SUCCESS, WARNING, DANGER, INFO,
+    FONT_BOLD, FONT_H1, FONT_H2, FONT_NORMAL, FONT_SMALL, FONT_TITLE,
+    INFO,
+    PURPLE,
+    SUCCESS, SUCCESS_LIGHT, SUCCESS_SURFACE,
+    WARNING, WARNING_LIGHT,
 )
 from app.ui.widgets import Toast
 
 logger = logging.getLogger(__name__)
 
 _NAV_ITEMS = [
-    ("🏠", "Dashboard"),
-    ("⚙", "Scan"),
-    ("📋", "Results"),
-    ("📜", "History"),
-    ("⚙", "Settings"),
+    ("📊", "Overview", "dashboard"),
+    ("🔍", "Scan Folders", "scan"),
+    ("📋", "Duplicate Review", "results"),
+    ("🛡️", "Quarantine Vault", "quarantine"),
+    ("📜", "Scan History", "history"),
+    ("⚙️", "Settings", "settings"),
 ]
 
 
 class AppWindow(tk.Tk):
-    """Main application window."""
+    """Main Desktop Application Window."""
 
     def __init__(self):
         super().__init__()
-        self.title("Application Duplicate Detector")
-        w, h = cfg.window_size
+        self.title("IADCS Sentinel — Intelligent Application Deduplication & System Optimizer")
+        w, h = getattr(cfg, "window_size", (1140, 740))
         self.geometry(f"{w}x{h}")
-        self.minsize(900, 600)
+        self.minsize(980, 640)
         self.configure(bg=BG_DARK)
 
         # Services
@@ -66,286 +74,286 @@ class AppWindow(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-    # ------------------------------------------------------------------
-    # Layout
-    # ------------------------------------------------------------------
-
-    def _setup_styles(self):
-        style = ttk.Style(self)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-
-        # Treeview dark theme
-        style.configure("Treeview",
-                        background=BG_CARD,
-                        foreground=FG_PRIMARY,
-                        fieldbackground=BG_CARD,
-                        borderwidth=0,
-                        rowheight=26,
-                        font=FONT_NORMAL)
-        style.configure("Treeview.Heading",
-                        background=BG_PANEL,
-                        foreground=ACCENT,
-                        font=FONT_BOLD,
-                        borderwidth=0)
-        style.map("Treeview",
-                  background=[("selected", ACCENT2)],
-                  foreground=[("selected", "#ffffff")])
-
-        # Notebook
-        style.configure("TNotebook", background=BG_DARK, borderwidth=0)
-        style.configure("TNotebook.Tab",
-                        background=BG_PANEL,
-                        foreground=FG_SECONDARY,
-                        padding=[12, 6],
-                        font=FONT_NORMAL)
-        style.map("TNotebook.Tab",
-                  background=[("selected", ACCENT)],
-                  foreground=[("selected", "#ffffff")])
-
-        # Progressbar
-        style.configure("Horizontal.TProgressbar",
-                        troughcolor=BG_PANEL,
-                        background=ACCENT,
-                        darkcolor=ACCENT,
-                        lightcolor=ACCENT,
-                        bordercolor=BG_PANEL)
-
-        # Scrollbar
-        style.configure("Vertical.TScrollbar",
-                        background=BG_PANEL,
-                        troughcolor=BG_DARK,
-                        arrowcolor=FG_MUTED)
-        style.configure("Horizontal.TScrollbar",
-                        background=BG_PANEL,
-                        troughcolor=BG_DARK,
-                        arrowcolor=FG_MUTED)
-
-        # PanedWindow sash
-        self.option_add("*PanedWindow.sashWidth", 4)
-        self.option_add("*PanedWindow.background", BORDER)
+    # ── Layout ────────────────────────────────────────────────────────────────
 
     def _build_layout(self):
-        # ── Outer paned: nav sidebar | main content ────────────────────
-        outer = tk.Frame(self, bg=BG_DARK)
-        outer.pack(fill="both", expand=True)
+        # Top level container
+        root_container = tk.Frame(self, bg=BG_DARK)
+        root_container.pack(fill="both", expand=True)
 
-        # Sidebar
-        self._sidebar = tk.Frame(outer, bg=BG_PANEL, width=200)
+        # ── Left Navigation Sidebar ───────────────────────────────────────────
+        self._sidebar = tk.Frame(
+            root_container,
+            bg=BG_SURFACE,
+            width=240,
+            padx=14,
+            pady=20,
+            highlightthickness=1,
+            highlightbackground=BORDER,
+        )
         self._sidebar.pack(side="left", fill="y")
         self._sidebar.pack_propagate(False)
 
-        # App brand in sidebar
-        brand = tk.Frame(self._sidebar, bg=BG_PANEL, pady=20, padx=12)
-        brand.pack(fill="x")
-        tk.Label(brand, text="🔍", font=("Segoe UI", 22),
-                 fg=ACCENT, bg=BG_PANEL).pack(anchor="w")
-        tk.Label(brand, text="Duplicate\nDetector", font=FONT_BOLD,
-                 fg=FG_PRIMARY, bg=BG_PANEL, justify="left").pack(anchor="w")
+        # Sidebar Header
+        sb_head = tk.Frame(self._sidebar, bg=BG_SURFACE)
+        sb_head.pack(fill="x", pady=(0, 20))
 
-        # Separator
-        tk.Frame(self._sidebar, bg=BORDER, height=1).pack(fill="x", padx=12)
+        logo_row = tk.Frame(sb_head, bg=BG_SURFACE)
+        logo_row.pack(anchor="w")
 
-        # Nav buttons
-        self._nav_btns: List[tk.Button] = []
-        self._active_nav = tk.IntVar(value=0)
-        nav_labels = ["Dashboard", "Scan", "Results", "History", "Settings"]
-        nav_icons  = ["🏠", "⚙", "📋", "📜", "⚙"]
-
-        for i, (icon, label) in enumerate(zip(nav_icons, nav_labels)):
-            btn = tk.Button(
-                self._sidebar,
-                text=f"  {icon}  {label}",
-                font=FONT_NORMAL,
-                fg=FG_SECONDARY if i != 0 else FG_PRIMARY,
-                bg=ACCENT if i == 0 else BG_PANEL,
-                activeforeground=FG_PRIMARY,
-                activebackground=ACCENT,
-                relief="flat", bd=0, cursor="hand2",
-                anchor="w", padx=12, pady=10,
-                command=lambda idx=i: self._switch_tab(idx),
-            )
-            btn.pack(fill="x")
-            self._nav_btns.append(btn)
-
-        # Status bar at bottom of sidebar
-        self._status_bar = tk.Label(
-            self._sidebar, text="Ready", font=FONT_SMALL,
-            fg=FG_MUTED, bg=BG_PANEL, wraplength=180, justify="left", pady=8, padx=12,
+        # Logo icon box
+        logo_box = tk.Label(
+            logo_row,
+            text="⚡",
+            font=(FONT_H1[0], 14, "bold"),
+            fg="#ffffff",
+            bg=ACCENT,
+            padx=8,
+            pady=4,
         )
-        self._status_bar.pack(side="bottom", fill="x")
+        logo_box.pack(side="left", padx=(0, 10))
 
-        # ── Content area (stacked frames, one visible at a time) ─────────
-        self._content = tk.Frame(outer, bg=BG_DARK)
+        title_col = tk.Frame(logo_row, bg=BG_SURFACE)
+        title_col.pack(side="left")
+
+        tk.Label(
+            title_col,
+            text="IADCS Sentinel",
+            font=(FONT_BOLD[0], 12, "bold"),
+            fg=FG_PRIMARY,
+            bg=BG_SURFACE,
+        ).pack(anchor="w")
+
+        tk.Label(
+            title_col,
+            text="DEDUPLICATOR PRO",
+            font=(FONT_SMALL[0], 8, "bold"),
+            fg=ACCENT_LIGHT,
+            bg=BG_SURFACE,
+        ).pack(anchor="w")
+
+        # Navigation Buttons
+        self._nav_buttons: Dict[str, tk.Button] = {}
+        self._nav_frame = tk.Frame(self._sidebar, bg=BG_SURFACE)
+        self._nav_frame.pack(fill="x", expand=True, anchor="n")
+
+        for icon, label, key in _NAV_ITEMS:
+            btn = tk.Button(
+                self._nav_frame,
+                text=f"  {icon}  {label}",
+                font=FONT_BOLD,
+                fg=FG_SECONDARY,
+                bg=BG_SURFACE,
+                activeforeground="#ffffff",
+                activebackground=ACCENT_SURFACE,
+                relief="flat",
+                bd=0,
+                anchor="w",
+                padx=12,
+                pady=10,
+                cursor="hand2",
+                command=lambda k=key: self._switch_panel(k),
+            )
+            btn.pack(fill="x", pady=2)
+            self._nav_buttons[key] = btn
+
+        # Sidebar Footer
+        sb_foot = tk.Frame(self._sidebar, bg=BG_SURFACE)
+        sb_foot.pack(side="bottom", fill="x")
+
+        status_box = tk.Frame(
+            sb_foot,
+            bg=BG_CARD,
+            padx=10,
+            pady=8,
+            highlightthickness=1,
+            highlightbackground=BORDER,
+        )
+        status_box.pack(fill="x", pady=(0, 10))
+
+        tk.Label(
+            status_box,
+            text="● Safe Mode: Active",
+            font=(FONT_SMALL[0], 9, "bold"),
+            fg=SUCCESS_LIGHT,
+            bg=BG_CARD,
+        ).pack(anchor="w")
+
+        tk.Label(
+            status_box,
+            text="SHA-256 Byte Verified",
+            font=FONT_SMALL,
+            fg=FG_MUTED,
+            bg=BG_CARD,
+        ).pack(anchor="w")
+
+        tk.Label(
+            sb_foot,
+            text="v2.0 Pro • Obsidian Logic",
+            font=FONT_SMALL,
+            fg=FG_MUTED,
+            bg=BG_SURFACE,
+        ).pack(anchor="w")
+
+        # ── Main Content Area ─────────────────────────────────────────────────
+        self._content = tk.Frame(root_container, bg=BG_DARK)
         self._content.pack(side="left", fill="both", expand=True)
 
-        self._dashboard = DashboardPanel(
-            self._content, on_start_scan=self._quick_scan,
-        )
-        self._scan_pnl = ScanPanel(
+        # Panels
+        self._panel_dashboard = DashboardPanel(
             self._content,
-            on_start_full=self._start_full_scan,
-            on_start_dir=self._start_dir_scan,
-            on_cancel=self._cancel_scan,
+            on_start_scan=self._on_quick_scan,
+            on_navigate=self._switch_panel,
         )
-        self._results_pnl = ResultsPanel(
-            self._content, repo=self._repo,
-            on_toast=self._toast,
+        self._panel_scan = ScanPanel(
+            self._content,
+            on_start_full=self._on_start_full_scan,
+            on_start_dir=self._on_start_dir_scan,
+            on_cancel=self._on_cancel_scan,
         )
-        self._history_pnl = HistoryPanel(self._content, repo=self._repo)
-        self._settings_pnl = SettingsPanel(self._content, on_toast=self._toast)
-
-        self._panels = [
-            self._dashboard,
-            self._scan_pnl,
-            self._results_pnl,
-            self._history_pnl,
-            self._settings_pnl,
-        ]
-        for p in self._panels:
-            p.place(relx=0, rely=0, relwidth=1, relheight=1)
-
-        self._switch_tab(0)
-
-    # ------------------------------------------------------------------
-    # Navigation
-    # ------------------------------------------------------------------
-
-    def _switch_tab(self, idx: int):
-        for i, (btn, panel) in enumerate(zip(self._nav_btns, self._panels)):
-            active = (i == idx)
-            btn.config(
-                bg=ACCENT if active else BG_PANEL,
-                fg=FG_PRIMARY if active else FG_SECONDARY,
-            )
-            if active:
-                panel.lift()
-
-    # ------------------------------------------------------------------
-    # Scan orchestration
-    # ------------------------------------------------------------------
-
-    def _quick_scan(self, scan_type: str):
-        """Called from dashboard quick-action buttons."""
-        if scan_type == "full":
-            self._start_full_scan()
-        else:
-            self._switch_tab(1)   # go to scan panel so user picks folder
-
-    def _start_full_scan(self):
-        if self._scan_mgr.is_running:
-            self._toast("A scan is already running.", "warning")
-            return
-        self._switch_tab(1)
-        self._scan_pnl.clear_log()
-        self._scan_pnl.set_scanning(True)
-        self._status("Running full system scan…")
-        self._scan_mgr.start_full_scan(
-            on_progress=self._on_scan_progress,
-            on_done=self._on_scan_done,
-            on_error=self._on_scan_error,
+        self._panel_results = ResultsPanel(
+            self._content,
+            repo=self._repo,
+            on_toast=self._show_toast,
+        )
+        self._panel_history = HistoryPanel(
+            self._content,
+            repo=self._repo,
+            on_toast=self._show_toast,
+        )
+        self._panel_settings = SettingsPanel(
+            self._content,
+            on_toast=self._show_toast,
         )
 
-    def _start_dir_scan(self, directory: str):
-        if self._scan_mgr.is_running:
-            self._toast("A scan is already running.", "warning")
-            return
-        self._scan_pnl.clear_log()
-        self._scan_pnl.set_scanning(True)
-        self._status(f"Scanning: {directory}")
-        self._scan_mgr.start_directory_scan(
-            directory,
-            on_progress=self._on_scan_progress,
-            on_done=self._on_scan_done,
-            on_error=self._on_scan_error,
-        )
+        self._panels = {
+            "dashboard":  self._panel_dashboard,
+            "scan":       self._panel_scan,
+            "results":    self._panel_results,
+            "quarantine": self._panel_history,
+            "history":    self._panel_history,
+            "settings":   self._panel_settings,
+        }
 
-    def _cancel_scan(self):
+        self._active_key = "dashboard"
+        self._switch_panel("dashboard")
+
+    def _setup_styles(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("TProgressbar", thickness=8, troughcolor=BG_PANEL, background=SUCCESS)
+
+    def _switch_panel(self, key: str):
+        for p in self._panels.values():
+            p.pack_forget()
+
+        # Update button highlights
+        for k, btn in self._nav_buttons.items():
+            if k == key:
+                btn.config(bg=ACCENT_SURFACE, fg="#ffffff", relief="flat")
+            else:
+                btn.config(bg=BG_SURFACE, fg=FG_SECONDARY)
+
+        panel = self._panels.get(key, self._panel_dashboard)
+        panel.pack(fill="both", expand=True)
+        self._active_key = key
+
+        if key == "dashboard":
+            self._refresh_dashboard()
+        elif key in ("history", "quarantine"):
+            self._panel_history.refresh_quarantine()
+            self._panel_history.refresh_history()
+
+    # ── Scan Event Handling ──────────────────────────────────────────────────
+
+    def _on_quick_scan(self, preset: str):
+        self._panel_scan.set_target_path(preset)
+        self._switch_panel("scan")
+        self._panel_scan._handle_start_scan()
+
+    def _on_start_full_scan(self):
+        paths = cfg.scan_paths
+        self._run_scan(paths)
+
+    def _on_start_dir_scan(self, path: str):
+        self._run_scan([path])
+
+    def _on_cancel_scan(self):
         self._scan_mgr.cancel()
-        self._status("Cancelling scan…")
+        self._panel_scan.log("Cancellation requested by user...", "WARNING")
 
-    # ------------------------------------------------------------------
-    # Scan callbacks (called from worker thread → safe via after())
-    # ------------------------------------------------------------------
+    def _run_scan(self, paths: list):
+        self._panel_scan.set_scanning(True)
+        self._panel_scan.log(f"Starting scan across {len(paths)} directory paths...", "INFO")
 
-    def _on_scan_progress(self, msg: str, done: int, total: int):
-        self.after(0, lambda: self._scan_pnl.set_progress(done, total, msg))
-        self.after(0, lambda: self._status(msg))
+        def _on_progress(cur, tot, status):
+            self.after(0, lambda: self._panel_scan.set_progress(cur, tot, status))
 
-    def _on_scan_done(self, scan: ScanRecord, groups: List[DuplicateGroup]):
-        self._current_scan = scan
+        def _on_log(msg, level="INFO"):
+            self.after(0, lambda: self._panel_scan.log(msg, level))
+
+        def _on_done(scan_record, groups):
+            self.after(0, lambda: self._scan_finished(scan_record, groups))
+
+        self._scan_mgr.start_async(
+            paths,
+            on_progress=_on_progress,
+            on_log=_on_log,
+            on_done=_on_done,
+        )
+
+    def _scan_finished(self, scan_record: Optional[ScanRecord], groups: List[DuplicateGroup]):
+        self._panel_scan.set_scanning(False)
+        self._current_scan = scan_record
         self._current_groups = groups
 
-        def _update():
-            self._scan_pnl.set_scanning(False)
-            self._scan_pnl.log(
-                f"\n✓ Scan #{scan.id} complete — "
-                f"{scan.apps_found} apps, {scan.duplicates_found} duplicate group(s)"
+        if scan_record:
+            self._show_toast(
+                f"Scan Complete! Found {scan_record.total_apps} apps, {scan_record.duplicate_groups} duplicate groups.",
+                "success",
             )
-            self._status(f"Scan done: {scan.apps_found} apps, {scan.duplicates_found} groups")
-            self._results_pnl.load_groups(groups)
+            self._panel_results.load_groups(groups)
             self._refresh_dashboard()
-            self._history_pnl.refresh()
-
-            # Auto-generate reports
-            if groups:
-                try:
-                    self._report_mgr.generate_all(scan, groups)
-                except Exception as exc:
-                    logger.warning("Report generation failed: %s", exc)
-
-            if groups:
-                self._toast(
-                    f"Found {len(groups)} duplicate group(s)! See Results tab.",
-                    "warning",
-                )
-                self._switch_tab(2)
-            else:
-                self._toast("No duplicate applications found.", "success")
-
-        self.after(0, _update)
-
-    def _on_scan_error(self, msg: str):
-        self.after(0, lambda: self._scan_pnl.set_scanning(False))
-        self.after(0, lambda: self._status(f"Scan error: {msg}"))
-        self.after(0, lambda: messagebox.showerror("Scan Error", msg))
-
-    # ------------------------------------------------------------------
-    # Dashboard refresh
-    # ------------------------------------------------------------------
+            self._switch_panel("results")
+        else:
+            self._show_toast("Scan completed with no records or was cancelled.", "info")
 
     def _refresh_dashboard(self):
         try:
             stats = self._repo.get_stats()
-            scans = self._repo.get_all_scans()
-            self._dashboard.refresh_stats(stats)
-            self._dashboard.refresh_scans(scans)
-        except Exception as exc:
-            logger.warning("Dashboard refresh failed: %s", exc)
+            total_apps = stats.get("total_apps", 0)
+            total_groups = stats.get("duplicate_groups", 0)
+            total_copies = stats.get("duplicate_copies", 0)
+            recoverable = stats.get("recoverable_bytes", 0)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
+            recent_scans = self._repo.get_all_scans()
+            recent_dict = None
+            if recent_scans:
+                s = recent_scans[0]
+                recent_dict = {
+                    "scan_id": s.id,
+                    "total_apps": s.apps_found,
+                    "duplicate_groups": s.duplicates_found,
+                    "reclaimable_size": recoverable,
+                    "completed_at": s.finished_at or s.started_at,
+                }
 
-    def _status(self, msg: str):
-        self._status_bar.config(text=msg)
+            self._panel_dashboard.update_stats(
+                total_apps=total_apps,
+                total_groups=total_groups,
+                total_copies=total_copies,
+                recoverable_bytes=recoverable,
+                recent_scan=recent_dict,
+            )
+        except Exception as e:
+            logger.warning("Failed to refresh dashboard stats: %s", e)
 
-    def _toast(self, msg: str, level: str = "info"):
-        Toast(self, msg, level=level)
-
-    # ------------------------------------------------------------------
-    # Close
-    # ------------------------------------------------------------------
+    def _show_toast(self, message: str, level: str = "info"):
+        Toast(self, message=message, level=level)
 
     def _on_close(self):
-        if self._scan_mgr.is_running:
-            if not messagebox.askyesno(
-                "Scan Running",
-                "A scan is currently running. Cancel it and quit?",
-            ):
-                return
-            self._scan_mgr.cancel()
-        self._db.close()
+        try:
+            self._db.close()
+        except Exception:
+            pass
         self.destroy()

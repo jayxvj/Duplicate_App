@@ -1,140 +1,253 @@
-"""
-History panel — shows past scans with report open buttons.
+﻿"""
+History & Quarantine Panel:
+  - Safe Quarantine Vault with 1-click restore functionality
+  - Past scan audit logs & JSON export
 """
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
+import json
 import tkinter as tk
-from tkinter import ttk
-from typing import List
+from tkinter import filedialog, messagebox, ttk
+from typing import Callable, List, Optional
 
-from app.data.models import ReportRecord, ScanRecord
+from app.removal.quarantine import QuarantineManager
+from app.data.models import ScanRecord
 from app.data.repository import Repository
 from app.ui.theme import (
-    ACCENT, BG_DARK, BG_PANEL, BORDER,
-    FG_PRIMARY, FG_SECONDARY, FG_MUTED,
-    FONT_BOLD, FONT_NORMAL, FONT_SMALL, FONT_TITLE,
-    SUCCESS, WARNING, DANGER, INFO,
+    ACCENT, ACCENT_HOVER, ACCENT_LIGHT, ACCENT_SURFACE,
+    BG_CARD, BG_CARD_HOVER, BG_DARK, BG_INPUT, BG_PANEL, BG_ROW_ALT, BG_SURFACE,
+    BORDER, BORDER_ACTIVE, BORDER_LIGHT,
+    DANGER, DANGER_LIGHT,
+    FG_MUTED, FG_PRIMARY, FG_SECONDARY,
+    FONT_BOLD, FONT_H1, FONT_H2, FONT_MONO, FONT_NORMAL, FONT_SMALL, FONT_TITLE,
+    INFO,
+    PURPLE,
+    SUCCESS, SUCCESS_LIGHT, SUCCESS_SURFACE,
+    WARNING, WARNING_LIGHT,
+    bytes_human,
 )
-from app.ui.widgets import IconButton, SectionLabel
+from app.ui.widgets import (
+    DangerButton, IconButton, PillBadge, PrimaryButton, SecondaryButton, SectionLabel, SuccessButton,
+)
 
 
 class HistoryPanel(tk.Frame):
-    def __init__(self, parent, repo: Repository, **kw):
+    """
+    History & Quarantine Panel:
+      - Quarantine Vault with 1-click restoration
+      - Scan execution audit records
+    """
+
+    def __init__(self, parent, repo: Repository, on_toast: Callable[[str, str], None], **kw):
         super().__init__(parent, bg=BG_DARK, **kw)
         self._repo = repo
+        self._qm = QuarantineManager()
+        self._on_toast = on_toast
         self._build()
 
     def _build(self):
-        header = tk.Frame(self, bg=BG_DARK, pady=16, padx=24)
+        # ── Header ────────────────────────────────────────────────────────────
+        header = tk.Frame(self, bg=BG_DARK, pady=20, padx=28)
         header.pack(fill="x")
-        tk.Label(header, text="📜  Scan History",
-                 font=(FONT_TITLE[0], 16, "bold"), fg=ACCENT, bg=BG_DARK).pack(anchor="w")
-        tk.Label(header, text="Review past scans and open generated reports.",
-                 font=FONT_NORMAL, fg=FG_SECONDARY, bg=BG_DARK).pack(anchor="w")
 
-        toolbar = tk.Frame(self, bg=BG_DARK, padx=24)
-        toolbar.pack(fill="x", pady=(0, 8))
-        IconButton(toolbar, "🔄  Refresh", command=self.refresh, bg=BG_PANEL).pack(side="left")
+        tk.Label(
+            header,
+            text="Quarantine Vault & Scan History",
+            font=FONT_H1,
+            fg=FG_PRIMARY,
+            bg=BG_DARK,
+        ).pack(anchor="w")
 
-        # ── Scans table ──────────────────────────────────────────────────
-        scans_f = tk.Frame(self, bg=BG_DARK, padx=24)
-        scans_f.pack(fill="both", expand=True)
+        tk.Label(
+            header,
+            text="Inspect isolated applications, restore files with 1-click, and review historical scan audit logs",
+            font=FONT_NORMAL,
+            fg=FG_SECONDARY,
+            bg=BG_DARK,
+        ).pack(anchor="w", pady=(2, 0))
 
-        SectionLabel(scans_f, "Scans", bg=BG_DARK).pack(fill="x", pady=(0, 6))
+        # ── Quarantine Vault Section ──────────────────────────────────────────
+        q_frame = tk.Frame(
+            self,
+            bg=BG_CARD,
+            padx=20,
+            pady=16,
+            highlightthickness=1,
+            highlightbackground=BORDER_LIGHT,
+        )
+        q_frame.pack(fill="both", expand=True, padx=28, pady=(0, 16))
 
-        cols = ("ID", "Type", "Root", "Status", "Apps", "Groups", "Started", "Duration")
-        self._scan_tree = ttk.Treeview(scans_f, columns=cols, show="headings",
-                                       height=10, selectmode="browse")
-        for col in cols:
-            self._scan_tree.heading(col, text=col)
-        self._scan_tree.column("ID",       width=40,  anchor="center")
-        self._scan_tree.column("Type",     width=80,  anchor="center")
-        self._scan_tree.column("Root",     width=200)
-        self._scan_tree.column("Status",   width=80,  anchor="center")
-        self._scan_tree.column("Apps",     width=50,  anchor="center")
-        self._scan_tree.column("Groups",   width=60,  anchor="center")
-        self._scan_tree.column("Started",  width=150)
-        self._scan_tree.column("Duration", width=90,  anchor="center")
+        q_head = tk.Frame(q_frame, bg=BG_CARD)
+        q_head.pack(fill="x", pady=(0, 10))
 
-        vsb = ttk.Scrollbar(scans_f, orient="vertical", command=self._scan_tree.yview)
-        self._scan_tree.config(yscrollcommand=vsb.set)
-        self._scan_tree.pack(side="left", fill="both", expand=True)
-        vsb.pack(side="left", fill="y")
+        SectionLabel(q_head, text="🛡️ Safe Quarantine Vault", bg=BG_CARD).pack(
+            side="left"
+        )
 
-        self._scan_tree.tag_configure("done",      foreground=SUCCESS)
-        self._scan_tree.tag_configure("error",     foreground=DANGER)
-        self._scan_tree.tag_configure("cancelled", foreground=WARNING)
+        SecondaryButton(
+            q_head,
+            text="🔄 Refresh Vault",
+            command=self.refresh_quarantine,
+        ).pack(side="right")
 
-        self._scan_tree.bind("<<TreeviewSelect>>", self._on_scan_select)
+        # Treeview for Quarantined Apps
+        q_tree_frame = tk.Frame(q_frame, bg=BG_CARD)
+        q_tree_frame.pack(fill="both", expand=True, pady=(0, 10))
 
-        # ── Reports for selected scan ─────────────────────────────────────
-        rep_f = tk.Frame(self, bg=BG_DARK, padx=24, pady=8)
-        rep_f.pack(fill="x")
+        self._q_tree = ttk.Treeview(
+            q_tree_frame,
+            columns=("status", "size", "original_path", "date"),
+            show="headings",
+            selectmode="browse",
+            height=6,
+        )
+        self._q_tree.heading("status", text="Status", anchor="center")
+        self._q_tree.heading("size", text="Size", anchor="e")
+        self._q_tree.heading("original_path", text="Original File Path", anchor="w")
+        self._q_tree.heading("date", text="Isolation Date", anchor="w")
 
-        SectionLabel(rep_f, "Reports for Selected Scan", bg=BG_DARK).pack(fill="x", pady=(0, 6))
+        self._q_tree.column("status", width=120, anchor="center")
+        self._q_tree.column("size", width=100, anchor="e")
+        self._q_tree.column("original_path", width=360)
+        self._q_tree.column("date", width=160)
 
-        rep_row = tk.Frame(rep_f, bg=BG_DARK)
-        rep_row.pack(fill="x")
+        q_vsb = ttk.Scrollbar(q_tree_frame, orient="vertical", command=self._q_tree.yview)
+        self._q_tree.configure(yscrollcommand=q_vsb.set)
+        self._q_tree.pack(side="left", fill="both", expand=True)
+        q_vsb.pack(side="right", fill="y")
 
-        self._report_buttons_frame = rep_row
-        self._no_reports_label = tk.Label(rep_row, text="Select a scan above.",
-                                          font=FONT_SMALL, fg=FG_MUTED, bg=BG_DARK)
-        self._no_reports_label.pack(anchor="w")
+        # Vault Action Bar
+        q_actions = tk.Frame(q_frame, bg=BG_CARD)
+        q_actions.pack(fill="x")
 
-        self.refresh()
+        SuccessButton(
+            q_actions,
+            text="↺ Restore Selected Application",
+            command=self._restore_selected_quarantine,
+        ).pack(side="left")
 
-    def refresh(self):
-        scans = self._repo.get_all_scans()
-        for row in self._scan_tree.get_children():
-            self._scan_tree.delete(row)
-        for s in scans:
-            # Compute duration
-            dur = "—"
-            if s.started_at and s.finished_at:
-                try:
-                    from datetime import datetime, timezone
-                    fmt = "%Y-%m-%dT%H:%M:%S"
-                    t1 = datetime.fromisoformat(s.started_at.split("+")[0].split(".")[0])
-                    t2 = datetime.fromisoformat(s.finished_at.split("+")[0].split(".")[0])
-                    secs = int((t2 - t1).total_seconds())
-                    dur = f"{secs}s"
-                except Exception:
-                    pass
-            root_disp = (s.root_path[:35] + "…") if len(s.root_path) > 35 else (s.root_path or "Full System")
-            self._scan_tree.insert(
-                "", "end", iid=str(s.id),
-                values=(s.id, s.scan_type.title(), root_disp,
-                        s.status.upper(), s.apps_found, s.duplicates_found,
-                        (s.started_at or "")[:19], dur),
-                tags=(s.status,),
+        # ── Scan History Log Section ──────────────────────────────────────────
+        h_frame = tk.Frame(
+            self,
+            bg=BG_CARD,
+            padx=20,
+            pady=16,
+            highlightthickness=1,
+            highlightbackground=BORDER,
+        )
+        h_frame.pack(fill="both", expand=True, padx=28, pady=(0, 20))
+
+        h_head = tk.Frame(h_frame, bg=BG_CARD)
+        h_head.pack(fill="x", pady=(0, 10))
+
+        SectionLabel(h_head, text="📜 Past Scan Audit Records", bg=BG_CARD).pack(
+            side="left"
+        )
+
+        SecondaryButton(
+            h_head,
+            text="📥 Export History (JSON)",
+            command=self._export_history_json,
+        ).pack(side="right")
+
+        h_tree_frame = tk.Frame(h_frame, bg=BG_CARD)
+        h_tree_frame.pack(fill="both", expand=True)
+
+        self._h_tree = ttk.Treeview(
+            h_tree_frame,
+            columns=("scan_id", "apps", "groups", "reclaimed", "completed"),
+            show="headings",
+            selectmode="browse",
+            height=5,
+        )
+        self._h_tree.heading("scan_id", text="Scan ID", anchor="w")
+        self._h_tree.heading("apps", text="Total Apps", anchor="e")
+        self._h_tree.heading("groups", text="Duplicate Groups", anchor="e")
+        self._h_tree.heading("reclaimed", text="Reclaimable", anchor="e")
+        self._h_tree.heading("completed", text="Completed At", anchor="w")
+
+        self._h_tree.column("scan_id", width=140)
+        self._h_tree.column("apps", width=90, anchor="e")
+        self._h_tree.column("groups", width=130, anchor="e")
+        self._h_tree.column("reclaimed", width=110, anchor="e")
+        self._h_tree.column("completed", width=180)
+
+        h_vsb = ttk.Scrollbar(h_tree_frame, orient="vertical", command=self._h_tree.yview)
+        self._h_tree.configure(yscrollcommand=h_vsb.set)
+        self._h_tree.pack(side="left", fill="both", expand=True)
+        h_vsb.pack(side="right", fill="y")
+
+    # ── Refresh & Actions ────────────────────────────────────────────────────
+
+    def refresh_quarantine(self):
+        self._q_tree.delete(*self._q_tree.get_children())
+        records = self._qm.list_quarantined()
+
+        for r in records:
+            orig_path = r.get("original_path", "")
+            size_str = bytes_human(r.get("total_size", 0))
+            date_str = r.get("quarantined_at", "Recent")
+            self._q_tree.insert(
+                "",
+                "end",
+                iid=orig_path,
+                values=("🛡️ QUARANTINED", size_str, orig_path, date_str),
             )
 
-    def _on_scan_select(self, _event=None):
-        sel = self._scan_tree.selection()
-        for w in self._report_buttons_frame.winfo_children():
-            w.destroy()
-        if not sel:
+    def refresh_history(self):
+        self._h_tree.delete(*self._h_tree.get_children())
+        records = self._repo.get_all_scans(limit=30)
+
+        for s in records:
+            self._h_tree.insert(
+                "",
+                "end",
+                iid=s.scan_id,
+                values=(
+                    s.scan_id,
+                    str(s.total_apps),
+                    str(s.duplicate_groups),
+                    bytes_human(s.reclaimable_size),
+                    s.completed_at or "In Progress",
+                ),
+            )
+
+    def _restore_selected_quarantine(self):
+        selected = self._q_tree.selection()
+        if not selected:
+            self._on_toast("Please select a quarantined item to restore.", "warning")
             return
-        scan_id = int(sel[0])
-        reports = self._repo.get_reports_for_scan(scan_id)
-        if not reports:
-            tk.Label(self._report_buttons_frame,
-                     text="No reports generated for this scan.",
-                     font=FONT_SMALL, fg=FG_MUTED, bg=BG_DARK).pack(anchor="w")
-            return
-        for r in reports:
-            def _open(path=r.file_path):
-                if os.path.exists(path):
-                    if sys.platform == "win32":
-                        os.startfile(path)
-                    elif sys.platform == "darwin":
-                        subprocess.Popen(["open", path])
-                    else:
-                        subprocess.Popen(["xdg-open", path])
-            ext = r.format.upper()
-            IconButton(self._report_buttons_frame,
-                       f"📄 Open {ext} Report",
-                       command=_open, bg=BG_PANEL).pack(side="left", padx=(0, 8))
+
+        orig_path = selected[0]
+        success = self._qm.restore_application(orig_path)
+        if success:
+            self._on_toast(f"Restored application to '{orig_path}' successfully!", "success")
+            self.refresh_quarantine()
+        else:
+            self._on_toast("Restore failed: destination path already exists.", "error")
+
+    def _export_history_json(self):
+        records = self._repo.get_all_scans(limit=100)
+        data = [
+            {
+                "scan_id": s.scan_id,
+                "started_at": s.started_at,
+                "completed_at": s.completed_at,
+                "total_apps": s.total_apps,
+                "duplicate_groups": s.duplicate_groups,
+                "reclaimable_size": s.reclaimable_size,
+                "paths_scanned": s.paths_scanned,
+            }
+            for s in records
+        ]
+
+        save_path = filedialog.asksaveasfilename(
+            title="Save Scan Audit History",
+            defaultextension=".json",
+            filetypes=[("JSON Files", "*.json")],
+            initialfile="iadcs_scan_history.json",
+        )
+        if save_path:
+            with open(save_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            self._on_toast(f"Exported {len(data)} scan records to JSON!", "success")
