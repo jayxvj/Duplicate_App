@@ -1,0 +1,61 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+iadcs.db
+iadcs_data.db
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+iadcs_audit.log
+
+# Generated reports & quarantine
+reports/
+output/
+report.json
+.iadcs_quarantine/
+.pytest_cache/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store

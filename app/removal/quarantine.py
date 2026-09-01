@@ -1,12 +1,10 @@
-"""Quarantine manager for safely isolating applications before permanent deletion."""
+﻿"""Quarantine manager for safely isolating applications before permanent deletion."""
 import json
 import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from app.core.types import Application
+from typing import Any, Dict, List, Optional, Union
 
 
 class QuarantineManager:
@@ -32,14 +30,29 @@ class QuarantineManager:
         with open(self.manifest_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
-    def quarantine_application(self, app: Application) -> Path:
+    def quarantine_application(self, app_or_path: Any, app_name: str = "") -> Optional[Path]:
         """Moves an application folder or file into the quarantine directory with timestamped ID."""
-        src_path = Path(app.root_path).resolve()
+        if hasattr(app_or_path, "root_path"):
+            src_path = Path(app_or_path.root_path).resolve()
+            name = getattr(app_or_path, "name", src_path.name)
+            fingerprint = getattr(app_or_path, "content_fingerprint", "unknown")
+            size = getattr(app_or_path, "total_size", 0)
+        elif hasattr(app_or_path, "install_path"):
+            src_path = Path(app_or_path.install_path).resolve()
+            name = getattr(app_or_path, "name", src_path.name)
+            fingerprint = getattr(app_or_path, "sha256_hash", "unknown")
+            size = getattr(app_or_path, "total_size", 0)
+        else:
+            src_path = Path(str(app_or_path)).resolve()
+            name = app_name or src_path.name
+            fingerprint = "manual"
+            size = sum(f.stat().st_size for f in src_path.rglob('*') if f.is_file()) if src_path.is_dir() else (src_path.stat().st_size if src_path.exists() else 0)
+
         if not src_path.exists():
-            raise FileNotFoundError(f"Application path does not exist: {src_path}")
+            return None
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        target_dir_name = f"{app.name}_{timestamp}_{app.content_fingerprint[:8]}"
+        target_dir_name = f"{name}_{timestamp}_{fingerprint[:8]}"
         dest_path = self.quarantine_path / target_dir_name
 
         # Move folder or file
@@ -48,11 +61,11 @@ class QuarantineManager:
         # Record in manifest
         manifest_data = self._read_manifest()
         item_entry = {
-            "app_name": app.name,
+            "app_name": name,
             "original_path": str(src_path),
             "quarantined_path": str(dest_path),
-            "fingerprint": app.content_fingerprint,
-            "total_size": app.total_size,
+            "fingerprint": fingerprint,
+            "total_size": size,
             "quarantined_at": datetime.now().isoformat(),
         }
         manifest_data["items"].append(item_entry)
@@ -79,15 +92,17 @@ class QuarantineManager:
         if not target_item:
             return False
 
-        q_path = Path(target_item["quarantined_path"])
-        orig_p = Path(target_item["original_path"])
+        quarantined_path = Path(target_item["quarantined_path"])
+        dest_path = Path(target_item["original_path"])
 
-        if not q_path.exists():
+        if not quarantined_path.exists():
             return False
 
-        # Ensure parent directory exists
-        orig_p.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(q_path), str(orig_p))
+        if dest_path.exists():
+            return False
+
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(quarantined_path), str(dest_path))
 
         items.pop(target_idx)
         manifest_data["items"] = items
