@@ -19,7 +19,7 @@ from app.ui.theme import (
     FONT_BOLD, FONT_H1, FONT_H2, FONT_MONO, FONT_NORMAL, FONT_SMALL, FONT_TITLE,
     INFO,
     PURPLE,
-    SUCCESS, SUCCESS_LIGHT,
+    SUCCESS, SUCCESS_LIGHT, SUCCESS_SURFACE,
     WARNING, WARNING_LIGHT,
 )
 from app.ui.widgets import (
@@ -277,10 +277,13 @@ class ScanPanel(tk.Frame):
             self._selected_dir.set(chosen)
 
     def set_target_path(self, preset: str):
+        import os
+        from pathlib import Path
+        proj_root = Path(__file__).resolve().parent.parent.parent
         if preset == "sample_apps":
-            self._selected_dir.set("sample_apps")
+            sample_path = proj_root / "sample_apps"
+            self._selected_dir.set(str(sample_path) if sample_path.exists() else "sample_apps")
         elif preset == "downloads":
-            import os
             self._selected_dir.set(os.path.expanduser("~/Downloads"))
         elif preset == "program_files":
             self._selected_dir.set("C:\\Program Files")
@@ -348,3 +351,4 @@ class ScanPanel(tk.Frame):
             drained += 1
 
         self.after(60, self._poll_log)
+

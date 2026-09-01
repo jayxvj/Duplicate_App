@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Optional, Set
 
 from app.data.models import AppRecord, DuplicateGroup
 from app.data.repository import Repository
-from app.manager.removal_manager import RemovalManager
+from app.removal.quarantine import QuarantineManager
 from app.ui.theme import (
     ACCENT, ACCENT_HOVER, ACCENT_LIGHT, ACCENT_SURFACE,
     BG_CARD, BG_CARD_HOVER, BG_DARK, BG_INPUT, BG_PANEL, BG_ROW_ALT, BG_SURFACE,
@@ -38,18 +38,46 @@ from app.ui.widgets import (
 )
 
 
+def _get_group_apps(grp: DuplicateGroup) -> List[AppRecord]:
+    return getattr(grp, "members", getattr(grp, "applications", [])) or []
+
+
+def _get_group_fp(grp: DuplicateGroup) -> str:
+    return getattr(grp, "group_signature", getattr(grp, "fingerprint", "")) or str(id(grp))
+
+
+def _get_group_name(grp: DuplicateGroup) -> str:
+    apps = _get_group_apps(grp)
+    return getattr(grp, "primary_name", "") or (apps[0].name if apps else "Unknown Application")
+
+
+def _get_app_size(app: AppRecord) -> int:
+    return getattr(app, "disk_size_bytes", getattr(app, "total_size", 0)) or 0
+
+
+def _get_group_reclaimable(grp: DuplicateGroup) -> int:
+    reclaim = getattr(grp, "reclaimable_size", None)
+    if reclaim is not None:
+        return reclaim
+    apps = _get_group_apps(grp)
+    if len(apps) <= 1:
+        return 0
+    sizes = [_get_app_size(a) for a in apps]
+    return sum(sizes) - max(sizes)
+
+
 class ResultsPanel(tk.Frame):
     """Interactive Duplicate Review Workspace."""
 
     def __init__(self, parent, repo: Repository, on_toast: Callable[[str, str], None], **kw):
         super().__init__(parent, bg=BG_DARK, **kw)
         self._repo = repo
-        self._removal = RemovalManager(repo)
+        self._qm = QuarantineManager()
         self._on_toast = on_toast
         self._groups: List[DuplicateGroup] = []
         self._selected_group: Optional[DuplicateGroup] = None
         self._selected_app: Optional[AppRecord] = None
-        self._keep_map: Dict[str, AppRecord] = {}  # group.fingerprint -> keep AppRecord
+        self._keep_map: Dict[str, AppRecord] = {}  # group_fp -> keep AppRecord
         self._selected_app_ids: Set[int] = set()
         self._build()
 
@@ -201,7 +229,7 @@ class ResultsPanel(tk.Frame):
         self._tree.heading("path", text="Path", anchor="w")
 
         self._tree.column("#0", width=220, minwidth=140)
-        self._tree.column("status", width=110, anchor="center")
+        self._tree.column("status", width=120, anchor="center")
         self._tree.column("size", width=90, anchor="e")
         self._tree.column("category", width=100)
         self._tree.column("path", width=240)
@@ -304,36 +332,45 @@ class ResultsPanel(tk.Frame):
     def _init_keep_map(self):
         self._keep_map.clear()
         for g in self._groups:
-            if g.applications:
-                # Default keep is first application (or oldest)
-                self._keep_map[g.fingerprint] = g.applications[0]
+            apps = _get_group_apps(g)
+            if apps:
+                fp = _get_group_fp(g)
+                # Check if group already specifies reference_app_id
+                ref_id = getattr(g, "reference_app_id", None)
+                chosen = next((a for a in apps if a.id == ref_id), apps[0])
+                self._keep_map[fp] = chosen
 
     def _populate_tree(self, filter_text: str = ""):
         self._tree.delete(*self._tree.get_children())
         q = filter_text.lower().strip()
 
         for g in self._groups:
-            keep_app = self._keep_map.get(g.fingerprint)
+            apps = _get_group_apps(g)
+            fp = _get_group_fp(g)
+            grp_name = _get_group_name(g)
+            keep_app = self._keep_map.get(fp)
 
             # Filter logic
             if q and not any(
                 q in (a.name.lower() or "") or q in (a.install_path.lower() or "") or q in (a.category.lower() or "")
-                for a in g.applications
+                for a in apps
             ):
                 continue
 
-            grp_id = f"grp_{g.fingerprint}"
-            reclaim_str = bytes_human(g.reclaimable_size)
+            grp_id = f"grp_{fp}"
+            reclaim_str = bytes_human(_get_group_reclaimable(g))
+            cat_str = apps[0].category if apps else "General"
+
             self._tree.insert(
                 "",
                 "end",
                 iid=grp_id,
-                text=f"📦 {g.primary_name} ({len(g.applications)} copies)",
-                values=("Exact Match", reclaim_str, g.applications[0].category if g.applications else "General", ""),
+                text=f"📦 {grp_name} ({len(apps)} copies)",
+                values=("Exact Match", reclaim_str, cat_str, ""),
                 open=True,
             )
 
-            for app in g.applications:
+            for app in apps:
                 app_id = f"app_{app.id}"
                 is_keep = (keep_app and app.id == keep_app.id)
                 status_text = "⭐ KEEP (ORIGINAL)" if is_keep else "⚠️ DUPLICATE"
@@ -344,7 +381,7 @@ class ResultsPanel(tk.Frame):
                     text=f"  📄 {app.name}",
                     values=(
                         status_text,
-                        bytes_human(app.total_size),
+                        bytes_human(_get_app_size(app)),
                         app.category,
                         app.install_path,
                     ),
@@ -369,16 +406,17 @@ class ResultsPanel(tk.Frame):
                 self._update_inspector_app(app)
         elif iid.startswith("grp_"):
             fp = iid.split("_")[1]
-            grp = next((g for g in self._groups if g.fingerprint == fp), None)
+            grp = next((g for g in self._groups if _get_group_fp(g) == fp), None)
             if grp:
                 self._selected_group = grp
                 self._update_inspector_group(grp)
 
     def _update_inspector_app(self, app: AppRecord):
-        grp = next((g for g in self._groups if any(a.id == app.id for a in g.applications)), None)
+        grp = next((g for g in self._groups if any(a.id == app.id for a in _get_group_apps(g))), None)
         is_keep = False
         if grp:
-            keep_app = self._keep_map.get(grp.fingerprint)
+            fp = _get_group_fp(grp)
+            keep_app = self._keep_map.get(fp)
             is_keep = (keep_app and keep_app.id == app.id)
 
         if is_keep:
@@ -388,14 +426,19 @@ class ResultsPanel(tk.Frame):
 
         self._lbl_insp_name.config(text=app.name)
         self._lbl_insp_path.config(text=f"Path: {app.install_path}")
-        self._lbl_insp_size.config(text=f"Size: {bytes_human(app.total_size)} • Category: {app.category}")
-        self._lbl_insp_hash.config(text=f"SHA-256: {app.sha256_hash or 'N/A'}")
+        size_str = bytes_human(_get_app_size(app))
+        self._lbl_insp_size.config(text=f"Size: {size_str} • Category: {app.category}")
+        sig = getattr(app, "app_signature", getattr(app, "sha256_hash", "N/A"))
+        self._lbl_insp_hash.config(text=f"SHA-256: {sig or 'N/A'}")
 
     def _update_inspector_group(self, grp: DuplicateGroup):
+        apps = _get_group_apps(grp)
+        grp_name = _get_group_name(grp)
+        fp = _get_group_fp(grp)
         self._lbl_insp_badge.config(text="  📦 DUPLICATE GROUP  ", fg=ACCENT_LIGHT, bg=ACCENT_SURFACE)
-        self._lbl_insp_name.config(text=f"{grp.primary_name} ({len(grp.applications)} instances)")
-        self._lbl_insp_path.config(text=f"Fingerprint: {grp.fingerprint}")
-        self._lbl_insp_size.config(text=f"Reclaimable Storage: {bytes_human(g.reclaimable_size)}")
+        self._lbl_insp_name.config(text=f"{grp_name} ({len(apps)} instances)")
+        self._lbl_insp_path.config(text=f"Fingerprint: {fp[:16]}...")
+        self._lbl_insp_size.config(text=f"Reclaimable Storage: {bytes_human(_get_group_reclaimable(grp))}")
         self._lbl_insp_hash.config(text="Status: 100% SHA-256 Byte Verified")
 
     # ── Smart Selectors ──────────────────────────────────────────────────────
@@ -403,8 +446,10 @@ class ResultsPanel(tk.Frame):
     def _auto_select_duplicates(self):
         self._selected_app_ids.clear()
         for g in self._groups:
-            keep_app = self._keep_map.get(g.fingerprint)
-            for a in g.applications:
+            fp = _get_group_fp(g)
+            keep_app = self._keep_map.get(fp)
+            apps = _get_group_apps(g)
+            for a in apps:
                 if not keep_app or a.id != keep_app.id:
                     self._selected_app_ids.add(a.id)
         self._update_selection_summary()
@@ -413,9 +458,11 @@ class ResultsPanel(tk.Frame):
     def _keep_newest(self):
         self._selected_app_ids.clear()
         for g in self._groups:
-            if g.applications:
-                sorted_apps = sorted(g.applications, key=lambda a: a.installed_at or "", reverse=True)
-                self._keep_map[g.fingerprint] = sorted_apps[0]
+            apps = _get_group_apps(g)
+            if apps:
+                fp = _get_group_fp(g)
+                sorted_apps = sorted(apps, key=lambda a: getattr(a, "last_scanned", "") or getattr(a, "installed_at", "") or "", reverse=True)
+                self._keep_map[fp] = sorted_apps[0]
                 for a in sorted_apps[1:]:
                     self._selected_app_ids.add(a.id)
         self._populate_tree(self._ent_search.get())
@@ -424,9 +471,11 @@ class ResultsPanel(tk.Frame):
     def _keep_oldest(self):
         self._selected_app_ids.clear()
         for g in self._groups:
-            if g.applications:
-                sorted_apps = sorted(g.applications, key=lambda a: a.installed_at or "")
-                self._keep_map[g.fingerprint] = sorted_apps[0]
+            apps = _get_group_apps(g)
+            if apps:
+                fp = _get_group_fp(g)
+                sorted_apps = sorted(apps, key=lambda a: getattr(a, "first_seen", "") or getattr(a, "installed_at", "") or "")
+                self._keep_map[fp] = sorted_apps[0]
                 for a in sorted_apps[1:]:
                     self._selected_app_ids.add(a.id)
         self._populate_tree(self._ent_search.get())
@@ -440,9 +489,9 @@ class ResultsPanel(tk.Frame):
     def _update_selection_summary(self):
         count = len(self._selected_app_ids)
         total_reclaim = sum(
-            a.total_size
+            _get_app_size(a)
             for g in self._groups
-            for a in g.applications
+            for a in _get_group_apps(g)
             if a.id in self._selected_app_ids
         )
         self._lbl_selection_summary.config(
@@ -452,9 +501,10 @@ class ResultsPanel(tk.Frame):
     def _mark_as_keep(self):
         if not self._selected_app:
             return
-        grp = next((g for g in self._groups if any(a.id == self._selected_app.id for a in g.applications)), None)
+        grp = next((g for g in self._groups if any(a.id == self._selected_app.id for a in _get_group_apps(g))), None)
         if grp:
-            self._keep_map[grp.fingerprint] = self._selected_app
+            fp = _get_group_fp(grp)
+            self._keep_map[fp] = self._selected_app
             self._selected_app_ids.discard(self._selected_app.id)
             self._populate_tree(self._ent_search.get())
             self._update_inspector_app(self._selected_app)
@@ -480,7 +530,7 @@ class ResultsPanel(tk.Frame):
             return
 
         apps_to_q = [
-            a for g in self._groups for a in g.applications if a.id in self._selected_app_ids
+            a for g in self._groups for a in _get_group_apps(g) if a.id in self._selected_app_ids
         ]
         count = len(apps_to_q)
 
@@ -493,11 +543,8 @@ class ResultsPanel(tk.Frame):
             return
 
         quarantined = 0
-        from app.removal.quarantine import QuarantineManager
-        qm = QuarantineManager()
-
         for a in apps_to_q:
-            success = qm.quarantine_application(a.install_path, app_name=a.name)
+            success = self._qm.quarantine_application(a.install_path, app_name=a.name)
             if success:
                 quarantined += 1
 
@@ -507,7 +554,7 @@ class ResultsPanel(tk.Frame):
 
     def _find_app_by_id(self, app_id: int) -> Optional[AppRecord]:
         for g in self._groups:
-            for a in g.applications:
+            for a in _get_group_apps(g):
                 if a.id == app_id:
                     return a
         return None

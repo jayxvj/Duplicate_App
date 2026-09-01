@@ -1,11 +1,12 @@
 ﻿"""
 Root Application Window for IADCS Sentinel Desktop:
 Assembles all panels, configures dark styles, owns managers,
-and routes events seamlessly across views.
+and routes events seamlessly across views via thread-safe queue.
 """
 from __future__ import annotations
 
 import logging
+import queue
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List, Optional
@@ -65,12 +66,16 @@ class AppWindow(tk.Tk):
         self._scan_mgr = ScanManager(self._repo)
         self._report_mgr = ReportManager(self._repo)
 
+        self._event_queue: queue.Queue = queue.Queue()
         self._current_scan: Optional[ScanRecord] = None
         self._current_groups: List[DuplicateGroup] = []
 
         self._setup_styles()
         self._build_layout()
         self._refresh_dashboard()
+
+        # Start thread-safe event queue listener
+        self._poll_events()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -272,35 +277,67 @@ class AppWindow(tk.Tk):
         self._panel_scan._handle_start_scan()
 
     def _on_start_full_scan(self):
-        paths = cfg.scan_paths
-        self._run_scan(paths)
+        self._run_scan(None)
 
     def _on_start_dir_scan(self, path: str):
-        self._run_scan([path])
+        self._run_scan(path)
 
     def _on_cancel_scan(self):
         self._scan_mgr.cancel()
         self._panel_scan.log("Cancellation requested by user...", "WARNING")
 
-    def _run_scan(self, paths: list):
+    def _run_scan(self, target_path: Optional[str] = None):
         self._panel_scan.set_scanning(True)
-        self._panel_scan.log(f"Starting scan across {len(paths)} directory paths...", "INFO")
+        target_display = target_path or "Full System"
+        self._panel_scan.log(f"Starting scan for: {target_display}...", "INFO")
 
-        def _on_progress(cur, tot, status):
-            self.after(0, lambda: self._panel_scan.set_progress(cur, tot, status))
+        def _on_progress(stage: str, cur: int, tot: int):
+            self._event_queue.put(("progress", stage, cur, tot))
 
-        def _on_log(msg, level="INFO"):
-            self.after(0, lambda: self._panel_scan.log(msg, level))
+        def _on_done(scan_record: Optional[ScanRecord], groups: List[DuplicateGroup]):
+            self._event_queue.put(("done", scan_record, groups))
 
-        def _on_done(scan_record, groups):
-            self.after(0, lambda: self._scan_finished(scan_record, groups))
+        def _on_error(err_msg: str):
+            self._event_queue.put(("error", err_msg))
 
-        self._scan_mgr.start_async(
-            paths,
-            on_progress=_on_progress,
-            on_log=_on_log,
-            on_done=_on_done,
-        )
+        if target_path:
+            self._scan_mgr.start_directory_scan(
+                directory=target_path,
+                on_progress=_on_progress,
+                on_done=_on_done,
+                on_error=_on_error,
+            )
+        else:
+            self._scan_mgr.start_full_scan(
+                on_progress=_on_progress,
+                on_done=_on_done,
+                on_error=_on_error,
+            )
+
+    def _poll_events(self):
+        """Thread-safe queue listener on main GUI loop."""
+        try:
+            while not self._event_queue.empty():
+                evt = self._event_queue.get_nowait()
+                action = evt[0]
+
+                if action == "progress":
+                    _, stage, cur, tot = evt
+                    self._panel_scan.set_progress(cur, tot, stage)
+                    if stage:
+                        self._panel_scan.log(stage, "INFO")
+                elif action == "done":
+                    _, scan_record, groups = evt
+                    self._scan_finished(scan_record, groups)
+                elif action == "error":
+                    _, err_msg = evt
+                    self._panel_scan.log(f"Error: {err_msg}", "DANGER")
+                    self._panel_scan.set_scanning(False)
+                    self._show_toast(f"Scan error: {err_msg}", "error")
+        except Exception as e:
+            logger.warning("Error processing event queue: %s", e)
+
+        self.after(50, self._poll_events)
 
     def _scan_finished(self, scan_record: Optional[ScanRecord], groups: List[DuplicateGroup]):
         self._panel_scan.set_scanning(False)
@@ -308,8 +345,10 @@ class AppWindow(tk.Tk):
         self._current_groups = groups
 
         if scan_record:
+            apps_cnt = getattr(scan_record, "apps_found", getattr(scan_record, "total_apps", len(groups)))
+            dups_cnt = getattr(scan_record, "duplicates_found", getattr(scan_record, "duplicate_groups", len(groups)))
             self._show_toast(
-                f"Scan Complete! Found {scan_record.total_apps} apps, {scan_record.duplicate_groups} duplicate groups.",
+                f"Scan Complete! Found {apps_cnt} apps, {dups_cnt} duplicate groups.",
                 "success",
             )
             self._panel_results.load_groups(groups)
@@ -357,3 +396,5 @@ class AppWindow(tk.Tk):
         except Exception:
             pass
         self.destroy()
+
+
