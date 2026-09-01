@@ -1,7 +1,9 @@
-"""Configuration loader for IADCS."""
+﻿"""Configuration loader for IADCS."""
 from pathlib import Path
 from typing import Any, Dict
 import yaml
+
+from app.config.config_loader import cfg
 
 CONFIG_DIR = Path(__file__).resolve().parent
 SETTINGS_FILE = CONFIG_DIR / "settings.yaml"

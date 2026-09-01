@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,11 +20,35 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environments
+# Virtual environment
 .venv/
 venv/
 ENV/
 env/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+iadcs.db
+iadcs_data.db
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+iadcs_audit.log
+
+# Generated reports & quarantine
+reports/
+output/
+report.json
+.iadcs_quarantine/
+.pytest_cache/
 
 # IDE & Editor
 .vscode/
@@ -32,8 +56,6 @@ env/
 *.swp
 *.swo
 
-# Project specific
-iadcs.db
-.iadcs_quarantine/
-*.log
-.pytest_cache/
+# OS
+Thumbs.db
+.DS_Store

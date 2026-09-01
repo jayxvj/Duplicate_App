@@ -1,4 +1,11 @@
+﻿# app/ui/__init__.py
 """User interface package for IADCS."""
-from app.ui.app_window import MainWindow, launch_gui
+try:
+    from app.ui.app_window import MainWindow, launch_gui
+except ImportError:
+    pass
 
-__all__ = ["MainWindow", "launch_gui"]
+try:
+    from app.ui.app import AppWindow
+except ImportError:
+    pass

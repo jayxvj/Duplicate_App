@@ -1,0 +1,50 @@
+{
+  "scan": {
+    "max_workers": 8,
+    "chunk_size": 65536,
+    "exclude_system_paths": true,
+    "system_exclusions": [
+      "C:\\Windows",
+      "C:\\Windows\\System32",
+      "C:\\Windows\\SysWOW64",
+      "C:\\$Recycle.Bin",
+      "C:\\Recovery",
+      "C:\\System Volume Information"
+    ],
+    "core_extensions": [
+      ".exe", ".dll", ".so", ".dylib",
+      ".jar", ".war", ".ear",
+      ".app", ".apk",
+      ".py", ".pyw",
+      ".js", ".mjs",
+      ".rb", ".pl",
+      ".sh", ".bat", ".cmd", ".ps1"
+    ],
+    "manifest_filenames": [
+      "package.json", "setup.py", "setup.cfg", "pyproject.toml",
+      "*.nuspec", "*.plist", "*.appxmanifest",
+      "AndroidManifest.xml", "Info.plist",
+      "manifest.json", "app.json"
+    ],
+    "max_file_size_bytes": 536870912
+  },
+  "ui": {
+    "theme": "darkly",
+    "window_width": 1280,
+    "window_height": 800,
+    "font_family": "Segoe UI",
+    "font_size": 10
+  },
+  "database": {
+    "path": "data/duplicates.db"
+  },
+  "logging": {
+    "level": "INFO",
+    "path": "logs/app.log",
+    "max_bytes": 5242880,
+    "backup_count": 3
+  },
+  "reports": {
+    "output_dir": "reports"
+  }
+}
