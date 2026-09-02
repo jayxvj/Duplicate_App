@@ -1,4 +1,4 @@
-﻿version: '3.8'
+version: '3.8'
 
 services:
   # CLI Runner / Background Scanner
@@ -37,3 +37,12 @@ services:
     ports:
       - "8080:8080"
     entrypoint: ["python", "-m", "app.web_server", "8080"]
+
+  # Standalone Compiled Binary Container (Zero Python runtime in container)
+  iadcs-standalone:
+    build:
+      context: .
+      dockerfile: Dockerfile.standalone
+    container_name: iadcs_standalone_exe
+    ports:
+      - "8080:8080"

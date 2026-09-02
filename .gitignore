@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -28,10 +28,13 @@ env/
 
 # Databases
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 iadcs.db
 iadcs_data.db
+data/
 
 # Secrets
 .env
